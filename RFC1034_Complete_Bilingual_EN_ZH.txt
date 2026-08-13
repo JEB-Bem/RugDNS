@@ -1,0 +1,4386 @@
+﻿Network Working Group                                     P. Mockapetris
+Request for Comments: 1034                                           ISI
+Obsoletes: RFCs 882, 883, 973                              November 1987
+
+网络工作组                                                   P. Mockapetris
+征求意见稿：1034                                                        ISI
+废止：RFC 882、883、973                                      1987 年 11 月
+
+
+DOMAIN NAMES - CONCEPTS AND FACILITIES
+
+域名——概念与设施
+
+
+1. STATUS OF THIS MEMO
+
+1. 本备忘录的状态
+
+
+This RFC is an introduction to the Domain Name System (DNS), and omits many details
+which can be found in a companion RFC, "Domain Names - Implementation and Specification"
+[RFC-1035]. That RFC assumes that the reader is familiar with the concepts discussed in
+this memo.
+
+本 RFC 是对域名系统（DNS）的介绍，并省略了许多细节；这些细节可在配套 RFC《域名——实现与规
+范》[RFC-1035] 中找到。该 RFC 假定读者已经熟悉本备忘录所讨论的概念。
+
+
+A subset of DNS functions and data types constitute an official protocol. The official
+protocol includes standard queries and their responses and most of the Internet class
+data formats (e.g., host addresses).
+
+DNS 的一部分功能和数据类型构成正式协议。正式协议包括标准查询及其响应，以及大多数
+Internet 类数据格式（例如主机地址）。
+
+
+However, the domain system is intentionally extensible. Researchers are continuously
+proposing, implementing and experimenting with new data types, query types, classes,
+functions, etc. Thus while the components of the official protocol are expected to stay
+essentially unchanged and operate as a production service, experimental behavior should
+always be expected in extensions beyond the official protocol. Experimental or obsolete
+features are clearly marked in these RFCs, and such information should be used with
+caution.
+
+然而，域名系统被有意设计为可扩展的。研究人员不断提出、实现并试验新的数据类型、查询类型、
+类、功能等。因此，虽然正式协议的组成部分预期将基本保持不变并作为生产服务运行，但在正式协
+议之外的扩展中，应始终预期存在实验性行为。这些 RFC 会明确标记实验性或已废弃的功能，使用
+此类信息时应当谨慎。
+
+
+The reader is especially cautioned not to depend on the values which appear in examples
+to be current or complete, since their purpose is primarily pedagogical. Distribution of
+this memo is unlimited.
+
+特别提醒读者：不要把示例中出现的值视为当前有效或完整的数据，因为这些值主要用于教学说明。
+本备忘录的分发不受限制。
+
+
+2. INTRODUCTION
+
+2. 引言
+
+
+This RFC introduces domain style names, their use for Internet mail and host address
+support, and the protocols and servers used to implement domain name facilities.
+
+本 RFC 介绍域名形式的名称、它们对 Internet 邮件和主机地址功能的支持，以及实现域名设施所
+使用的协议和服务器。
+
+
+2.1. The history of domain names
+
+2.1. 域名的历史
+
+
+The impetus for the development of the domain system was growth in the Internet:
+
+推动域名系统发展的原因是 Internet 的增长：
+
+
+   - Host name to address mappings were maintained by the Network Information Center
+     (NIC) in a single file (HOSTS.TXT) which was FTPed by all hosts [RFC-952, RFC-953].
+     The total network bandwidth consumed in distributing a new version by this scheme
+     is proportional to the square of the number of hosts in the network, and even when
+     multiple levels of FTP are used, the outgoing FTP load on the NIC host is
+     considerable. Explosive growth in the number of hosts didn't bode well for the
+     future.
+
+   - 主机名到地址的映射由网络信息中心（NIC）维护在一个单一文件（HOSTS.TXT）中，所有主机
+     都通过 FTP 获取该文件 [RFC-952, RFC-953]。采用这种方案分发新版本时，所消耗的总网络
+     带宽与网络中主机数量的平方成正比；即使采用多级 FTP，NIC 主机上的出站 FTP 负载仍然相
+     当可观。主机数量的爆炸式增长并不预示着一个良好的未来。
+
+
+   - The network population was also changing in character. The timeshared hosts that
+     made up the original ARPANET were being replaced with local networks of
+     workstations. Local organizations were administering their own names and addresses,
+     but had to wait for the NIC to change HOSTS.TXT to make changes visible to the
+     Internet at large. Organizations also wanted some local structure on the name
+     space.
+
+   - 网络成员的性质也在发生变化。构成早期 ARPANET 的分时主机正被工作站组成的局域网取代。
+     各个本地组织自行管理其名称和地址，但必须等待 NIC 修改 HOSTS.TXT，所做更改才能对整个
+     Internet 可见。这些组织还希望名称空间能够具有一定的本地结构。
+
+
+   - The applications on the Internet were getting more sophisticated and creating a
+     need for general purpose name service.
+
+   - Internet 上的应用正在变得更加复杂，由此产生了对通用名称服务的需求。
+
+
+The result was several ideas about name spaces and their management [IEN-116, RFC-799,
+RFC-819, RFC-830]. The proposals varied, but a common thread was the idea of a
+hierarchical name space, with the hierarchy roughly corresponding to organizational
+structure, and names using "." as the character to mark the boundary between hierarchy
+levels. A design using a distributed database and generalized resources was described in
+[RFC-882, RFC-883]. Based on experience with several implementations, the system evolved
+into the scheme described in this memo.
+
+其结果是出现了若干关于名称空间及其管理方式的构想 [IEN-116, RFC-799, RFC-819, RFC-830]。
+这些提案各不相同，但共同点都是采用层次化名称空间：层次结构大致对应于组织结构，并使用“.”
+字符标记层次之间的边界。[RFC-882, RFC-883] 描述了一种使用分布式数据库和通用化资源的设计。
+基于多个实现的经验，系统最终演化为本备忘录所描述的方案。
+
+
+The terms "domain" or "domain name" are used in many contexts beyond the DNS described
+here. Very often, the term domain name is used to refer to a name with structure
+indicated by dots, but no relation to the DNS. This is particularly true in mail
+addressing [Quarterman 86].
+
+“domain”或“domain name”这些术语在这里所述 DNS 之外的许多语境中也会使用。很多时候，
+“domain name”用来指一种由点号表示结构的名称，但它与 DNS 并无关系。在邮件寻址中尤其如此
+[Quarterman 86]。
+
+
+2.2. DNS design goals
+
+2.2. DNS 的设计目标
+
+
+The design goals of the DNS influence its structure. They are:
+
+DNS 的设计目标影响了它的结构。这些目标是：
+
+
+   - The primary goal is a consistent name space which will be used for referring to
+     resources. In order to avoid the problems caused by ad hoc encodings, names should
+     not be required to contain network identifiers, addresses, routes, or similar
+     information as part of the name.
+
+   - 首要目标是建立一个一致的名称空间，用于引用各种资源。为避免临时拼凑的编码方式所造成
+     的问题，不应要求名称把网络标识符、地址、路由或类似信息作为名称的一部分。
+
+
+   - The sheer size of the database and frequency of updates suggest that it must be
+     maintained in a distributed manner, with local caching to improve performance.
+     Approaches that attempt to collect a consistent copy of the entire database will
+     become more and more expensive and difficult, and hence should be avoided. The same
+     principle holds for the structure of the name space, and in particular mechanisms
+     for creating and deleting names; these should also be distributed.
+
+   - 数据库的庞大规模和更新频率表明，它必须以分布式方式维护，并使用本地缓存提高性能。试
+     图收集整个数据库的一致副本会变得越来越昂贵和困难，因此应当避免。相同原则也适用于名
+     称空间的结构，尤其是创建和删除名称的机制；这些机制也应当是分布式的。
+
+
+   - Where there tradeoffs between the cost of acquiring data, the speed of updates, and
+     the accuracy of caches, the source of the data should control the tradeoff.
+
+   - 当获取数据的成本、更新速度和缓存准确性之间需要权衡时，应由数据源控制这种权衡。
+
+
+   - The costs of implementing such a facility dictate that it be generally useful, and
+     not restricted to a single application. We should be able to use names to retrieve
+     host addresses, mailbox data, and other as yet undetermined information. All data
+     associated with a name is tagged with a type, and queries can be limited to a
+     single type.
+
+   - 实现此类设施的成本决定了它必须具有普遍用途，而不能局限于某一种应用。我们应当能够使
+     用名称检索主机地址、邮箱数据以及其他尚未确定的信息。与名称关联的所有数据都以类型标
+     记，查询可以限定为单一类型。
+
+
+   - Because we want the name space to be useful in dissimilar networks and applications,
+     we provide the ability to use the same name space with different protocol families
+     or management. For example, host address formats differ between protocols, though
+     all protocols have the notion of address. The DNS tags all data with a class as
+     well as the type, so that we can allow parallel use of different formats for data
+     of type address.
+
+   - 由于我们希望名称空间能够用于不同的网络和应用，因此系统允许不同的协议族或管理体系使
+     用同一个名称空间。例如，尽管所有协议都有“地址”这一概念，不同协议的主机地址格式却可
+     能不同。DNS 除了给所有数据标记类型之外，还会标记类，从而允许地址类型的数据并行使用
+     不同格式。
+
+
+   - We want name server transactions to be independent of the communications system
+     that carries them. Some systems may wish to use datagrams for queries and responses,
+     and only establish virtual circuits for transactions that need the reliability
+     (e.g., database updates, long transactions); other systems will use virtual
+     circuits exclusively.
+
+   - 我们希望名称服务器事务独立于承载它们的通信系统。某些系统可能希望使用数据报进行查询
+     和响应，只为需要可靠性的事务（例如数据库更新、长事务）建立虚电路；另一些系统则会完
+     全使用虚电路。
+
+
+   - The system should be useful across a wide spectrum of host capabilities. Both
+     personal computers and large timeshared hosts should be able to use the system,
+     though perhaps in different ways.
+
+   - 系统应当适用于能力差异很大的各种主机。个人计算机和大型分时主机都应能够使用该系统，
+     尽管使用方式可能不同。
+
+
+2.3. Assumptions about usage
+
+2.3. 关于使用方式的假设
+
+
+The organization of the domain system derives from some assumptions about the needs and
+usage patterns of its user community and is designed to avoid many of the the
+complicated problems found in general purpose database systems.
+
+域名系统的组织方式源于对用户群体需求和使用模式的一些假设，其设计意在避开通用数据库系统中
+存在的许多复杂问题。
+
+
+The assumptions are:
+
+这些假设是：
+
+
+   - The size of the total database will initially be proportional to the number of
+     hosts using the system, but will eventually grow to be proportional to the number
+     of users on those hosts as mailboxes and other information are added to the domain
+     system.
+
+   - 数据库的总规模起初将与使用该系统的主机数量成正比；随着邮箱和其他信息被加入域名系统，
+     它最终将增长到与这些主机上的用户数量成正比。
+
+
+   - Most of the data in the system will change very slowly (e.g., mailbox bindings,
+     host addresses), but that the system should be able to deal with subsets that
+     change more rapidly (on the order of seconds or minutes).
+
+   - 系统中的大多数数据变化非常缓慢（例如邮箱绑定、主机地址），但系统应能够处理变化更快
+     的子集，其变化时间尺度可能为数秒或数分钟。
+
+
+   - The administrative boundaries used to distribute responsibility for the database
+     will usually correspond to organizations that have one or more hosts. Each
+     organization that has responsibility for a particular set of domains will provide
+     redundant name servers, either on the organization's own hosts or other hosts that
+     the organization arranges to use.
+
+   - 用于分配数据库职责的管理边界通常会与拥有一台或多台主机的组织相对应。每个负责一组特
+     定域的组织都将提供冗余名称服务器，这些服务器可以位于该组织自己的主机上，也可以位于
+     该组织安排使用的其他主机上。
+
+
+   - Clients of the domain system should be able to identify trusted name servers they
+     prefer to use before accepting referrals to name servers outside of this "trusted"
+     set.
+
+   - 域名系统的客户端应能预先识别其偏好使用的可信名称服务器，然后才接受指向这一“可信”集
+     合之外名称服务器的转介。
+
+
+   - Access to information is more critical than instantaneous updates or guarantees of
+     consistency. Hence the update process allows updates to percolate out through the
+     users of the domain system rather than guaranteeing that all copies are
+     simultaneously updated. When updates are unavailable due to network or host failure,
+     the usual course is to believe old information while continuing efforts to update
+     it. The general model is that copies are distributed with timeouts for refreshing.
+     The distributor sets the timeout value and the recipient of the distribution is
+     responsible for performing the refresh. In special situations, very short intervals
+     can be specified, or the owner can prohibit copies.
+
+   - 信息的可访问性比即时更新或一致性保证更为重要。因此，更新过程允许更新逐步传播到域名
+     系统的用户，而不是保证所有副本同时更新。当由于网络或主机故障而无法获取更新时，通常
+     的做法是继续相信旧信息，同时持续尝试更新。一般模型是：副本在分发时附带刷新超时；分
+     发者设定超时值，接收者负责执行刷新。在特殊情况下，可以规定非常短的时间间隔，或者由
+     所有者禁止复制。
+
+
+   - In any system that has a distributed database, a particular name server may be
+     presented with a query that can only be answered by some other server. The two
+     general approaches to dealing with this problem are "recursive", in which the first
+     server pursues the query for the client at another server, and "iterative", in
+     which the server refers the client to another server and lets the client pursue the
+     query. Both approaches have advantages and disadvantages, but the iterative
+     approach is preferred for the datagram style of access. The domain system requires
+     implementation of the iterative approach, but allows the recursive approach as an
+     option.
+
+   - 在任何具有分布式数据库的系统中，某个名称服务器都可能收到一个只能由其他服务器回答的
+     查询。处理这一问题通常有两种方式：“递归”方式中，第一个服务器代表客户端到另一个服务
+     器继续查询；“迭代”方式中，服务器把客户端转介给另一个服务器，由客户端自行继续查询。
+     两种方式各有优缺点，但对于数据报式访问，优先采用迭代方式。域名系统要求实现迭代方式，
+     同时允许把递归方式作为可选功能。
+
+
+The domain system assumes that all data originates in master files scattered through the
+hosts that use the domain system. These master files are updated by local system
+administrators. Master files are text files that are read by a local name server, and
+hence become available through the name servers to users of the domain system. The user
+programs access name servers through standard programs called resolvers.
+
+域名系统假定，所有数据都起源于散布在使用该系统的各台主机上的主文件。这些主文件由本地系统
+管理员更新。主文件是文本文件，由本地名称服务器读取，随后通过名称服务器向域名系统的用户提
+供。用户程序通过称为解析器的标准程序访问名称服务器。
+
+
+The standard format of master files allows them to be exchanged between hosts (via FTP,
+mail, or some other mechanism); this facility is useful when an organization wants a
+domain, but doesn't want to support a name server. The organization can maintain the
+master files locally using a text editor, transfer them to a foreign host which runs a
+name server, and then arrange with the system administrator of the name server to get
+the files loaded.
+
+主文件的标准格式使它们能够在主机之间交换（通过 FTP、邮件或其他机制）。当一个组织希望拥有
+某个域，却不愿自行支持名称服务器时，这一功能很有用。该组织可以使用文本编辑器在本地维护主
+文件，把它们传送到运行名称服务器的外部主机，然后与该名称服务器的系统管理员协调，使这些文
+件得到加载。
+
+
+Each host's name servers and resolvers are configured by a local system administrator
+[RFC-1033]. For a name server, this configuration data includes the identity of local
+master files and instructions on which non-local master files are to be loaded from
+foreign servers. The name server uses the master files or copies to load its zones. For
+resolvers, the configuration data identifies the name servers which should be the
+primary sources of information.
+
+每台主机的名称服务器和解析器都由本地系统管理员配置 [RFC-1033]。对于名称服务器，配置数据
+包括本地主文件的标识，以及应从外部服务器加载哪些非本地主文件的指令。名称服务器使用主文件
+或其副本加载自身的区域。对于解析器，配置数据则标识应当作为主要信息源的名称服务器。
+
+
+The domain system defines procedures for accessing the data and for referrals to other
+name servers. The domain system also defines procedures for caching retrieved data and
+for periodic refreshing of data defined by the system administrator.
+
+域名系统定义了访问数据以及转介到其他名称服务器的过程。域名系统还定义了缓存已检索数据，以
+及按照系统管理员的规定周期性刷新数据的过程。
+
+
+The system administrators provide:
+
+系统管理员提供：
+
+
+   - The definition of zone boundaries.
+
+   - 区域边界的定义。
+
+
+   - Master files of data.
+
+   - 数据主文件。
+
+
+   - Updates to master files.
+
+   - 对主文件的更新。
+
+
+   - Statements of the refresh policies desired.
+
+   - 所期望刷新策略的说明。
+
+
+The domain system provides:
+
+域名系统提供：
+
+
+   - Standard formats for resource data.
+
+   - 资源数据的标准格式。
+
+
+   - Standard methods for querying the database.
+
+   - 查询数据库的标准方法。
+
+
+   - Standard methods for name servers to refresh local data from foreign name servers.
+
+   - 名称服务器从外部名称服务器刷新本地数据的标准方法。
+
+
+2.4. Elements of the DNS
+
+2.4. DNS 的组成部分
+
+
+The DNS has three major components:
+
+DNS 有三个主要组成部分：
+
+
+   - The DOMAIN NAME SPACE and RESOURCE RECORDS, which are specifications for a tree
+     structured name space and data associated with the names. Conceptually, each node
+     and leaf of the domain name space tree names a set of information, and query
+     operations are attempts to extract specific types of information from a particular
+     set. A query names the domain name of interest and describes the type of resource
+     information that is desired. For example, the Internet uses some of its domain
+     names to identify hosts; queries for address resources return Internet host
+     addresses.
+
+   - 域名空间（DOMAIN NAME SPACE）和资源记录（RESOURCE RECORDS）：它们规定了树形名称空间
+     以及与名称关联的数据。从概念上说，域名空间树的每个节点和叶子都命名了一组信息，而查
+     询操作试图从某一特定集合中提取指定类型的信息。查询会给出所关注的域名，并描述所需资
+     源信息的类型。例如，Internet 使用部分域名标识主机；对地址资源的查询会返回 Internet
+     主机地址。
+
+
+   - NAME SERVERS are server programs which hold information about the domain tree's
+     structure and set information. A name server may cache structure or set information
+     about any part of the domain tree, but in general a particular name server has
+     complete information about a subset of the domain space, and pointers to other name
+     servers that can be used to lead to information from any part of the domain tree.
+     Name servers know the parts of the domain tree for which they have complete
+     information; a name server is said to be an AUTHORITY for these parts of the name
+     space. Authoritative information is organized into units called ZONEs, and these
+     zones can be automatically distributed to the name servers which provide redundant
+     service for the data in a zone.
+
+   - 名称服务器（NAME SERVERS）：它们是保存域树结构信息和集合信息的服务器程序。名称服务
+     器可以缓存域树任意部分的结构信息或集合信息，但通常某个特定名称服务器只掌握域空间某
+     个子集的完整信息，并保存指向其他名称服务器的指针，借此可以找到域树任意部分的信息。
+     名称服务器知道自己对域树的哪些部分掌握完整信息；对名称空间的这些部分，该名称服务器
+     被称为权威（AUTHORITY）。权威信息被组织成称为区域（ZONE）的单元，这些区域可以自动分
+     发给为区域数据提供冗余服务的名称服务器。
+
+
+   - RESOLVERS are programs that extract information from name servers in response to
+     client requests. Resolvers must be able to access at least one name server and use
+     that name server's information to answer a query directly, or pursue the query
+     using referrals to other name servers. A resolver will typically be a system
+     routine that is directly accessible to user programs; hence no protocol is
+     necessary between the resolver and the user program.
+
+   - 解析器（RESOLVERS）：它们是响应客户端请求、从名称服务器提取信息的程序。解析器必须能
+     够访问至少一个名称服务器，并利用该服务器的信息直接回答查询，或者根据指向其他名称服
+     务器的转介继续查询。解析器通常是用户程序可以直接调用的系统例程，因此解析器与用户程
+     序之间不需要协议。
+
+
+These three components roughly correspond to the three layers or views of the domain
+system:
+
+这三个组成部分大致对应于域名系统的三个层次或三种视角：
+
+
+   - From the user's point of view, the domain system is accessed through a simple
+     procedure or OS call to a local resolver. The domain space consists of a single
+     tree and the user can request information from any section of the tree.
+
+   - 从用户的视角看，通过一个简单过程或操作系统调用访问本地解析器，就可以使用域名系统。
+     域空间由一棵树组成，用户可以请求树中任意部分的信息。
+
+
+   - From the resolver's point of view, the domain system is composed of an unknown
+     number of name servers. Each name server has one or more pieces of the whole domain
+     tree's data, but the resolver views each of these databases as essentially static.
+
+   - 从解析器的视角看，域名系统由数量未知的名称服务器构成。每个名称服务器都掌握整棵域树
+     数据中的一个或多个部分，但解析器把这些数据库中的每一个都视为基本静态。
+
+
+   - From a name server's point of view, the domain system consists of separate sets of
+     local information called zones. The name server has local copies of some of the
+     zones. The name server must periodically refresh its zones from master copies in
+     local files or foreign name servers. The name server must concurrently process
+     queries that arrive from resolvers.
+
+   - 从名称服务器的视角看，域名系统由彼此分离的本地信息集合组成，这些集合称为区域。名称
+     服务器保存其中一些区域的本地副本。名称服务器必须定期从本地文件或外部名称服务器中的
+     主副本刷新其区域，同时还必须并发处理解析器发来的查询。
+
+
+In the interests of performance, implementations may couple these functions. For example,
+a resolver on the same machine as a name server might share a database consisting of the
+the zones managed by the name server and the cache managed by the resolver.
+
+出于性能考虑，实现可以把这些功能结合起来。例如，与名称服务器位于同一台机器上的解析器，可
+以共享一个数据库；该数据库由名称服务器所管理的区域和解析器所管理的缓存构成。
+
+
+   3. DOMAIN NAME SPACE and RESOURCE RECORDS
+
+3. 域名空间和资源记录
+
+
+3.1. Name space specifications and terminology
+
+3.1. 名称空间的规范与术语
+
+
+The domain name space is a tree structure. Each node and leaf on the tree corresponds to
+a resource set (which may be empty). The domain system makes no distinctions between the
+uses of the interior nodes and leaves, and this memo uses the term "node" to refer to
+both.
+
+域名空间是一种树形结构。树上的每个内部节点和叶节点都对应一个资源集合，该集合可以为空。域
+名系统不区分内部节点和叶节点的用途，本备忘录用“节点”一词同时指代二者。
+
+
+Each node has a label, which is zero to 63 octets in length. Brother nodes may not have
+the same label, although the same label can be used for nodes which are not brothers.
+One label is reserved, and that is the null (i.e., zero length) label used for the root.
+
+每个节点都有一个标签，其长度为 0 到 63 个八位组。兄弟节点不能具有相同标签，但不互为兄弟
+的节点可以使用相同标签。有一个标签被保留，即用于根节点的空标签（长度为零）。
+
+
+The domain name of a node is the list of the labels on the path from the node to the
+root of the tree. By convention, the labels that compose a domain name are printed or
+read left to right, from the most specific (lowest, farthest from the root) to the least
+specific (highest, closest to the root).
+
+节点的域名是从该节点到树根路径上所有标签构成的列表。按照约定，构成域名的标签从左到右书写
+或读取，顺序从最具体的标签（最低、距离根最远）到最不具体的标签（最高、最接近根）。
+
+
+Internally, programs that manipulate domain names should represent them as sequences of
+labels, where each label is a length octet followed by an octet string. Because all
+domain names end at the root, which has a null string for a label, these internal
+representations can use a length byte of zero to terminate a domain name.
+
+在内部，处理域名的程序应把域名表示为标签序列，其中每个标签由一个长度八位组及其后的八位组
+字符串组成。由于所有域名最终都到达根，而根的标签是空字符串，因此这种内部表示可以用值为零
+的长度字节终止一个域名。
+
+
+By convention, domain names can be stored with arbitrary case, but domain name
+comparisons for all present domain functions are done in a case-insensitive manner,
+assuming an ASCII character set, and a high order zero bit. This means that you are free
+to create a node with label "A" or a node with label "a", but not both as brothers; you
+could refer to either using "a" or "A". When you receive a domain name or label, you
+should preserve its case. The rationale for this choice is that we may someday need to
+add full binary domain names for new services; existing services would not be changed.
+
+按照约定，域名可以保留任意字母大小写形式，但现有所有域名功能中的域名比较都不区分大小写；
+这里假定使用 ASCII 字符集，并且最高位为零。这意味着你可以创建标签为“A”的节点，也可以创建
+标签为“a”的节点，但二者不能同时作为兄弟节点；引用其中任意一个时都可以使用“a”或“A”。收到
+域名或标签时，应保留其原有大小写。选择这种方式的理由是，将来可能需要为新服务加入完全二进
+制的域名，而现有服务无需改变。
+
+
+When a user needs to type a domain name, the length of each label is omitted and the
+labels are separated by dots ("."). Since a complete domain name ends with the root
+label, this leads to a printed form which ends in a dot. We use this property to
+distinguish between:
+
+当用户需要输入域名时，会省略每个标签的长度，并用点号（“.”）分隔标签。由于完整域名以根标
+签结束，其打印形式也就以点号结尾。我们利用这一特性区分以下两类名称：
+
+
+   - a character string which represents a complete domain name (often called
+     "absolute"). For example, "poneria.ISI.EDU."
+
+   - 表示完整域名的字符串，通常称为“绝对名称”。例如“poneria.ISI.EDU.”。
+
+
+   - a character string that represents the starting labels of a domain name which is
+     incomplete, and should be completed by local software using knowledge of the local
+     domain (often called "relative"). For example, "poneria" used in the ISI.EDU
+     domain.
+
+   - 表示一个尚不完整域名的起始标签的字符串，本地软件应利用对本地域的了解将其补全，通常
+     称为“相对名称”。例如，在 ISI.EDU 域中使用“poneria”。
+
+
+Relative names are either taken relative to a well known origin, or to a list of domains
+used as a search list. Relative names appear mostly at the user interface, where their
+interpretation varies from implementation to implementation, and in master files, where
+they are relative to a single origin domain name. The most common interpretation uses
+the root "." as either the single origin or as one of the members of the search list, so
+a multi-label relative name is often one where the trailing dot has been omitted to save
+typing.
+
+相对名称可以相对于一个众所周知的起点，也可以相对于作为搜索列表的一组域。相对名称主要出现
+在用户界面中，其解释方式因实现而异；也会出现在主文件中，此时它们相对于一个单一的起始域名。
+最常见的解释方式把根“.”作为唯一的起点，或者作为搜索列表成员之一。因此，多标签相对名称通
+常只是为了减少输入而省略了末尾点号的名称。
+
+
+To simplify implementations, the total number of octets that represent a domain name
+(i.e., the sum of all label octets and label lengths) is limited to 255.
+
+为简化实现，用于表示域名的八位组总数，即所有标签内容八位组与标签长度八位组之和，被限制为
+255。
+
+
+A domain is identified by a domain name, and consists of that part of the domain name
+space that is at or below the domain name which specifies the domain. A domain is a
+subdomain of another domain if it is contained within that domain. This relationship can
+be tested by seeing if the subdomain's name ends with the containing domain's name. For
+example, A.B.C.D is a subdomain of B.C.D, C.D, D, and " ".
+
+一个域由域名标识，它由域名空间中位于该域名所指定位置或其下方的部分组成。如果一个域包含在
+另一个域中，它就是后者的子域。可以通过检查子域名称是否以包含它的域名结尾来判断这种关系。
+例如，A.B.C.D 是 B.C.D、C.D、D 和“ ”的子域。
+
+
+3.2. Administrative guidelines on use
+
+3.2. 使用方面的管理准则
+
+
+As a matter of policy, the DNS technical specifications do not mandate a particular tree
+structure or rules for selecting labels; its goal is to be as general as possible, so
+that it can be used to build arbitrary applications. In particular, the system was
+designed so that the name space did not have to be organized along the lines of network
+boundaries, name servers, etc. The rationale for this is not that the name space should
+have no implied semantics, but rather that the choice of implied semantics should be
+left open to be used for the problem at hand, and that different parts of the tree can
+have different implied semantics. For example, the IN-ADDR.ARPA domain is organized and
+distributed by network and host address because its role is to translate from network or
+host numbers to names; NetBIOS domains [RFC-1001, RFC-1002] are flat because that is
+appropriate for that application.
+
+作为一项策略，DNS 技术规范并不强制规定特定的树结构或标签选择规则；其目标是尽可能通用，从
+而能够构建任意应用。特别是，系统的设计使名称空间不必按照网络边界、名称服务器等因素来组织。
+这样做并不是认为名称空间不应具有隐含语义，而是把隐含语义的选择留给具体问题，并允许树的不
+同部分具有不同的隐含语义。例如，IN-ADDR.ARPA 域按照网络和主机地址组织与分布，因为它的作
+用是把网络号或主机号转换为名称；NetBIOS 域 [RFC-1001, RFC-1002] 则是扁平的，因为这种结构
+适合该应用。
+
+
+However, there are some guidelines that apply to the "normal" parts of the name space
+used for hosts, mailboxes, etc., that will make the name space more uniform, provide for
+growth, and minimize problems as software is converted from the older host table. The
+political decisions about the top levels of the tree originated in RFC-920. Current
+policy for the top levels is discussed in [RFC-1032]. MILNET conversion issues are
+covered in [RFC-1031].
+
+不过，对于用于主机、邮箱等用途的名称空间“常规”部分，仍有一些准则能够使名称空间更加统一、
+为增长留出空间，并在软件从旧主机表迁移时尽量减少问题。关于树顶层的管理决策起源于 RFC-920。
+当前的顶层策略见 [RFC-1032]。MILNET 的迁移问题见 [RFC-1031]。
+
+
+Lower domains which will eventually be broken into multiple zones should provide
+branching at the top of the domain so that the eventual decomposition can be done
+without renaming. Node labels which use special characters, leading digits, etc., are
+likely to break older software which depends on more restrictive choices.
+
+最终将被拆分为多个区域的下层域，应在域的顶部提供分支，使以后能够在不重命名的情况下完成分
+解。使用特殊字符、以数字开头等形式的节点标签，很可能破坏依赖更严格命名规则的旧软件。
+
+
+3.3. Technical guidelines on use
+
+3.3. 使用方面的技术准则
+
+
+Before the DNS can be used to hold naming information for some kind of object, two needs
+must be met:
+
+在 DNS 能够保存某类对象的命名信息之前，必须满足两个条件：
+
+
+   - A convention for mapping between object names and domain names. This describes how
+     information about an object is accessed.
+
+   - 规定对象名称与域名之间的映射约定，用以说明如何访问某个对象的信息。
+
+
+   - RR types and data formats for describing the object.
+
+   - 规定描述该对象的 RR 类型和数据格式。
+
+
+These rules can be quite simple or fairly complex. Very often, the designer must take
+into account existing formats and plan for upward compatibility for existing usage.
+Multiple mappings or levels of mapping may be required.
+
+这些规则可以非常简单，也可以相当复杂。设计者通常必须考虑现有格式，并为现有用法规划向上兼
+容性；可能需要多种映射或多级映射。
+
+
+For hosts, the mapping depends on the existing syntax for host names which is a subset
+of the usual text representation for domain names, together with RR formats for
+describing host addresses, etc. Because we need a reliable inverse mapping from address
+to host name, a special mapping for addresses into the IN-ADDR.ARPA domain is also
+defined.
+
+对于主机，映射取决于现有主机名语法——它是域名常用文本表示法的一个子集——以及用于描述主机地
+址等信息的 RR 格式。由于还需要从地址可靠地反向映射到主机名，因此也定义了把地址映射到
+IN-ADDR.ARPA 域的特殊方式。
+
+
+For mailboxes, the mapping is slightly more complex. The usual mail address
+<local-part>@<mail-domain> is mapped into a domain name by converting <local-part> into
+a single label (regardles of dots it contains), converting <mail-domain> into a domain
+name using the usual text format for domain names (dots denote label breaks), and
+concatenating the two to form a single domain name. Thus the mailbox
+HOSTMASTER@SRI-NIC.ARPA is represented as a domain name by HOSTMASTER.SRI-NIC.ARPA. An
+appreciation for the reasons behind this design also must take into account the scheme
+for mail exchanges [RFC-974].
+
+对于邮箱，映射稍微复杂一些。通常的邮件地址 <local-part>@<mail-domain> 按如下方式映射为域
+名：把 <local-part> 转换为单个标签，不论其中是否包含点号；使用域名的常规文本格式把
+<mail-domain> 转换为域名，其中点号表示标签分界；然后把两者连接成一个域名。因此，邮箱
+HOSTMASTER@SRI-NIC.ARPA 被表示为域名 HOSTMASTER.SRI-NIC.ARPA。要理解这一设计背后的原因，
+还必须考虑邮件交换方案 [RFC-974]。
+
+
+The typical user is not concerned with defining these rules, but should understand that
+they usually are the result of numerous compromises between desires for upward
+compatibility with old usage, interactions between different object definitions, and the
+inevitable urge to add new features when defining the rules. The way the DNS is used to
+support some object is often more crucial than the restrictions inherent in the DNS.
+
+普通用户并不需要定义这些规则，但应理解，它们通常是在以下因素之间多次折中的结果：与旧有用
+法保持向上兼容的愿望、不同对象定义之间的相互作用，以及定义规则时不可避免地想要加入新功能
+的冲动。DNS 支持某种对象的具体使用方式，往往比 DNS 本身固有的限制更为关键。
+
+
+3.4. Example name space
+
+3.4. 名称空间示例
+
+
+The following figure shows a part of the current domain name space, and is used in many
+examples in this RFC. Note that the tree is a very small subset of the actual name
+space.
+
+下图展示了当时域名空间的一部分，并在本 RFC 的许多示例中使用。请注意，这棵树只是实际名称
+空间中非常小的一个子集。
+
+
+                                   |
+                                   |
+             +---------------------+------------------+
+             |                     |                  |
+            MIL                   EDU                ARPA
+             |                     |                  |
+             |                     |                  |
+       +-----+-----+               |     +------+-----+-----+
+       |     |     |               |     |      |           |
+      BRL  NOSC  DARPA             |  IN-ADDR  SRI-NIC     ACC
+                                   |
+       +--------+------------------+---------------+--------+
+       |        |                  |               |        |
+      UCI      MIT                 |              UDEL     YALE
+                |                 ISI
+                |                  |
+            +---+---+              |
+            |       |              |
+           LCS  ACHILLES  +--+-----+-----+--------+
+            |             |  |     |     |        |
+            XX            A  C   VAXA  VENERA Mockapetris
+
+
+In this example, the root domain has three immediate subdomains: MIL, EDU, and ARPA. The
+LCS.MIT.EDU domain has one immediate subdomain named XX.LCS.MIT.EDU. All of the leaves
+are also domains.
+
+在此示例中，根域有三个直接子域：MIL、EDU 和 ARPA。LCS.MIT.EDU 域有一个名为
+XX.LCS.MIT.EDU 的直接子域。所有叶节点本身也都是域。
+
+
+3.5. Preferred name syntax
+
+3.5. 首选名称语法
+
+
+The DNS specifications attempt to be as general as possible in the rules for
+constructing domain names. The idea is that the name of any existing object can be
+expressed as a domain name with minimal changes. However, when assigning a domain name
+for an object, the prudent user will select a name which satisfies both the rules of the
+domain system and any existing rules for the object, whether these rules are published
+or implied by existing programs.
+
+DNS 规范试图使构造域名的规则尽可能通用，其思想是：任何现有对象的名称都能以最少改动表示为
+域名。不过，在为对象分配域名时，审慎的用户会选择既满足域名系统规则，又满足该对象现有规则
+的名称，无论这些规则是正式发布的，还是由现有程序隐含规定的。
+
+
+For example, when naming a mail domain, the user should satisfy both the rules of this
+memo and those in RFC-822. When creating a new host name, the old rules for HOSTS.TXT
+should be followed. This avoids problems when old software is converted to use domain
+names.
+
+例如，为邮件域命名时，用户应同时满足本备忘录和 RFC-822 的规则。创建新的主机名时，应遵循
+旧的 HOSTS.TXT 规则。这样可以避免旧软件改为使用域名时出现问题。
+
+
+The following syntax will result in fewer problems with many applications that use
+domain names (e.g., mail, TELNET).
+
+以下语法能够减少许多使用域名的应用（例如邮件和 TELNET）中出现的问题。
+
+
+<domain> ::= <subdomain> | " "
+
+<domain> 可以是一个 <subdomain>，也可以是空字符串“ ”。
+
+
+<subdomain> ::= <label> | <subdomain> "." <label>
+
+<subdomain> 可以是一个 <label>，或者是由 <subdomain>、点号“.”和 <label> 连接而成。
+
+
+<label> ::= <letter> [ [ <ldh-str> ] <let-dig> ]
+
+<label> 由一个 <letter> 开始，后面可以选择性地包含一个 <ldh-str>，并以一个 <let-dig> 结
+束。
+
+
+<ldh-str> ::= <let-dig-hyp> | <let-dig-hyp> <ldh-str>
+
+<ldh-str> 可以是一个 <let-dig-hyp>，也可以由一个 <let-dig-hyp> 后接另一个 <ldh-str> 构成。
+
+
+<let-dig-hyp> ::= <let-dig> | "-"
+
+<let-dig-hyp> 可以是一个 <let-dig>，也可以是连字符“-”。
+
+
+<let-dig> ::= <letter> | <digit>
+
+<let-dig> 可以是一个 <letter>，也可以是一个 <digit>。
+
+
+<letter> ::= any one of the 52 alphabetic characters A through Z in upper case and a
+through z in lower case
+
+<letter> 是 52 个英文字母之一，包括大写 A 到 Z 和小写 a 到 z。
+
+
+<digit> ::= any one of the ten digits 0 through 9
+
+<digit> 是十个数字 0 到 9 之一。
+
+
+Note that while upper and lower case letters are allowed in domain names, no
+significance is attached to the case. That is, two names with the same spelling but
+different case are to be treated as if identical.
+
+请注意，虽然域名中允许使用大写和小写字母，但大小写本身没有意义。也就是说，拼写相同而仅大
+小写不同的两个名称应被视为完全相同。
+
+
+The labels must follow the rules for ARPANET host names. They must start with a letter,
+end with a letter or digit, and have as interior characters only letters, digits, and
+hyphen. There are also some restrictions on the length. Labels must be 63 characters or
+less.
+
+标签必须遵循 ARPANET 主机名规则：必须以字母开头，以字母或数字结尾，中间只能包含字母、数
+字和连字符；长度也受到限制，每个标签不得超过 63 个字符。
+
+
+For example, the following strings identify hosts in the Internet:
+
+例如，以下字符串标识 Internet 中的主机：
+
+
+A.ISI.EDU  XX.LCS.MIT.EDU  SRI-NIC.ARPA
+
+
+3.6. Resource Records
+
+3.6. 资源记录
+
+
+A domain name identifies a node. Each node has a set of resource information, which may
+be empty. The set of resource information associated with a particular name is composed
+of separate resource records (RRs). The order of RRs in a set is not significant, and
+need not be preserved by name servers, resolvers, or other parts of the DNS.
+
+域名标识一个节点。每个节点都有一组资源信息，该集合可以为空。与某个特定名称关联的资源信息
+集合由若干独立的资源记录（RR）组成。集合中 RR 的顺序没有意义，名称服务器、解析器或 DNS
+的其他组成部分都不必保留其顺序。
+
+
+When we talk about a specific RR, we assume it has the following:
+
+当我们讨论一个特定 RR 时，假定它包含以下内容：
+
+
+owner which is the domain name where the RR is found.
+
+owner：该 RR 所在位置的域名，即所有者名称。
+
+
+type which is an encoded 16 bit value that specifies the type of the resource in this
+resource record. Types refer to abstract resources.
+
+type：一个经过编码的 16 位值，用于指定该资源记录中资源的类型。类型指代抽象资源。
+
+
+This memo uses the following types:
+
+本备忘录使用以下类型：
+
+
+A a host address
+
+A：主机地址。
+
+
+CNAME identifies the canonical name of an alias
+
+CNAME：标识某个别名的规范名称。
+
+
+HINFO identifies the CPU and OS used by a host
+
+HINFO：标识主机所使用的 CPU 和操作系统。
+
+
+MX identifies a mail exchange for the domain. See [RFC-974 for details.
+
+MX：标识该域的邮件交换器。详细信息见 [RFC-974]。
+
+
+NS the authoritative name server for the domain
+
+NS：该域的权威名称服务器。
+
+
+PTR a pointer to another part of the domain name space
+
+PTR：指向域名空间另一部分的指针。
+
+
+SOA identifies the start of a zone of authority]
+
+SOA：标识一个权威区域的起点。
+
+
+class which is an encoded 16 bit value which identifies a protocol family or instance of
+a protocol.
+
+class：一个经过编码的 16 位值，用于标识协议族或某个协议实例。
+
+
+This memo uses the following classes:
+
+本备忘录使用以下类：
+
+
+IN the Internet system
+
+IN：Internet 系统。
+
+
+CH the Chaos system
+
+CH：Chaos 系统。
+
+
+TTL which is the time to live of the RR. This field is a 32 bit integer in units of
+seconds, an is primarily used by resolvers when they cache RRs. The TTL describes how
+long a RR can be cached before it should be discarded.
+
+TTL：RR 的生存时间。该字段是以秒为单位的 32 位整数，主要供解析器缓存 RR 时使用。TTL 说明
+一个 RR 在被丢弃之前可以缓存多长时间。
+
+
+RDATA which is the type and sometimes class dependent data which describes the resource:
+
+RDATA：依赖于类型、有时也依赖于类的数据，用于描述资源：
+
+
+A For the IN class, a 32 bit IP address
+
+A：对于 IN 类，是一个 32 位 IP 地址。
+
+
+For the CH class, a domain name followed by a 16 bit octal Chaos address.
+
+对于 CH 类，是一个域名，后接一个 16 位八进制 Chaos 地址。
+
+
+CNAME a domain name.
+
+CNAME：一个域名。
+
+
+MX a 16 bit preference value (lower is better) followed by a host name willing to act as
+a mail exchange for the owner domain.
+
+MX：一个 16 位优先级值（数值越小优先级越高），后接一个愿意为所有者域充当邮件交换器的主机
+名。
+
+
+NS a host name.
+
+NS：一个主机名。
+
+
+PTR a domain name.
+
+PTR：一个域名。
+
+
+SOA several fields.
+
+SOA：若干字段。
+
+
+The owner name is often implicit, rather than forming an integral part of the RR. For
+example, many name servers internally form tree or hash structures for the name space,
+and chain RRs off nodes. The remaining RR parts are the fixed header (type, class, TTL)
+which is consistent for all RRs, and a variable part (RDATA) that fits the needs of the
+resource being described.
+
+所有者名称通常是隐含的，而不是 RR 不可分割的一部分。例如，许多名称服务器在内部为名称空间
+构造树结构或散列结构，并把 RR 链接到节点上。RR 的其余部分包括所有 RR 都具有一致格式的固
+定首部（类型、类、TTL），以及适应所描述资源需要的可变部分（RDATA）。
+
+
+The meaning of the TTL field is a time limit on how long an RR can be kept in a cache.
+This limit does not apply to authoritative data in zones; it is also timed out, but by
+the refreshing policies for the zone. The TTL is assigned by the administrator for the
+zone where the data originates. While short TTLs can be used to minimize caching, and a
+zero TTL prohibits caching, the realities of Internet performance suggest that these
+times should be on the order of days for the typical host. If a change can be
+anticipated, the TTL can be reduced prior to the change to minimize inconsistency during
+the change, and then increased back to its former value following the change.
+
+TTL 字段的含义是限制 RR 可以在缓存中保留多长时间。该限制不适用于区域中的权威数据；权威数
+据也会超时，但由区域的刷新策略控制。TTL 由数据起源区域的管理员分配。虽然可以使用较短的
+TTL 来减少缓存，并且 TTL 为零会禁止缓存，但 Internet 的实际性能表明，对典型主机而言，这
+些时间通常应以天为数量级。如果可以预见某项变更，可以在变更前降低 TTL，以尽量减小变更期间
+的不一致；变更完成后再把 TTL 恢复到原值。
+
+
+The data in the RDATA section of RRs is carried as a combination of binary strings and
+domain names. The domain names are frequently used as "pointers" to other data in the
+DNS.
+
+RR 的 RDATA 部分以二进制字符串和域名的组合形式承载。域名经常被用作指向 DNS 中其他数据的
+“指针”。
+
+
+3.6.1. Textual expression of RRs
+
+3.6.1. RR 的文本表示
+
+
+RRs are represented in binary form in the packets of the DNS protocol, and are usually
+represented in highly encoded form when stored in a name server or resolver. In this
+memo, we adopt a style similar to that used in master files in order to show the
+contents of RRs. In this format, most RRs are shown on a single line, although
+continuation lines are possible using parentheses.
+
+RR 在 DNS 协议报文中以二进制形式表示，存储在名称服务器或解析器中时通常采用高度编码的形式。
+为展示 RR 的内容，本备忘录采用一种与主文件相似的样式。在这种格式中，大多数 RR 显示在单行
+上，但也可以使用圆括号形成续行。
+
+
+The start of the line gives the owner of the RR. If a line begins with a blank, then the
+owner is assumed to be the same as that of the previous RR. Blank lines are often
+included for readability.
+
+一行的开头给出 RR 的所有者。如果某行以空白开头，则假定其所有者与前一个 RR 相同。为提高可
+读性，常常会加入空行。
+
+
+Following the owner, we list the TTL, type, and class of the RR. Class and type use the
+mnemonics defined above, and TTL is an integer before the type field. In order to avoid
+ambiguity in parsing, type and class mnemonics are disjoint, TTLs are integers, and the
+type mnemonic is always last. The IN class and TTL values are often omitted from
+examples in the interests of clarity.
+
+在所有者之后，依次列出 RR 的 TTL、类型和类。类和类型使用前面定义的助记符，TTL 是位于类型
+字段之前的整数。为避免解析歧义，类型助记符与类助记符互不重叠，TTL 必须是整数，并且类型助
+记符总是最后一个字段。为清晰起见，示例中经常省略 IN 类和 TTL 值。
+
+
+The resource data or RDATA section of the RR are given using knowledge of the typical
+representation for the data.
+
+RR 的资源数据部分（RDATA）根据该类数据的典型表示方式给出。
+
+
+For example, we might show the RRs carried in a message as:
+
+例如，可以把报文中承载的 RR 表示为：
+
+
+    ISI.EDU.        MX      10 VENERA.ISI.EDU.
+                    MX      10 VAXA.ISI.EDU.
+    VENERA.ISI.EDU. A       128.9.0.32
+                    A       10.1.0.52
+    VAXA.ISI.EDU.   A       10.2.0.27
+                    A       128.9.0.33
+
+
+The MX RRs have an RDATA section which consists of a 16 bit number followed by a domain
+name. The address RRs use a standard IP address format to contain a 32 bit internet
+address.
+
+MX RR 的 RDATA 部分由一个 16 位数字和其后的一个域名组成。地址 RR 使用标准 IP 地址格式保
+存一个 32 位 Internet 地址。
+
+
+This example shows six RRs, with two RRs at each of three domain names.
+
+该示例共包含六个 RR，三个域名中的每一个都对应两个 RR。
+
+
+Similarly we might see:
+
+类似地，还可能看到：
+
+
+    XX.LCS.MIT.EDU. IN      A       10.0.0.44
+                    CH      A       MIT.EDU. 2420
+
+
+This example shows two addresses for XX.LCS.MIT.EDU, each of a different class.
+
+该示例给出了 XX.LCS.MIT.EDU 的两个地址，二者分别属于不同的类。
+
+
+3.6.2. Aliases and canonical names
+
+3.6.2. 别名和规范名称
+
+
+In existing systems, hosts and other resources often have several names that identify
+the same resource. For example, the names C.ISI.EDU and USC-ISIC.ARPA both identify the
+same host. Similarly, in the case of mailboxes, many organizations provide many names
+that actually go to the same mailbox; for example Mockapetris@C.ISI.EDU,
+Mockapetris@B.ISI.EDU, and PVM@ISI.EDU all go to the same mailbox (although the
+mechanism behind this is somewhat complicated).
+
+在现有系统中，主机和其他资源经常有多个名称标识同一资源。例如，C.ISI.EDU 和 USC-ISIC.ARPA
+都标识同一台主机。对于邮箱也类似，许多组织提供多个实际投递到同一邮箱的名称；例如
+Mockapetris@C.ISI.EDU、Mockapetris@B.ISI.EDU 和 PVM@ISI.EDU 都投递到同一个邮箱，尽管其背
+后的机制较为复杂。
+
+
+Most of these systems have a notion that one of the equivalent set of names is the
+canonical or primary name and all others are aliases.
+
+这些系统大多具有这样的概念：一组等价名称中有一个是规范名称或主名称，其余名称都是别名。
+
+
+The domain system provides such a feature using the canonical name (CNAME) RR. A CNAME
+RR identifies its owner name as an alias, and specifies the corresponding canonical name
+in the RDATA section of the RR. If a CNAME RR is present at a node, no other data should
+be present; this ensures that the data for a canonical name and its aliases cannot be
+different. This rule also insures that a cached CNAME can be used without checking with
+an authoritative server for other RR types.
+
+域名系统通过规范名称（CNAME）RR 提供这一功能。CNAME RR 把其所有者名称标识为别名，并在 RR
+的 RDATA 部分指定对应的规范名称。如果某个节点存在 CNAME RR，就不应再存在其他数据；这可确
+保规范名称与其别名的数据不会不同。该规则还保证，使用已缓存的 CNAME 时，无需再向权威服务
+器检查其他 RR 类型。
+
+
+CNAME RRs cause special action in DNS software. When a name server fails to find a
+desired RR in the resource set associated with the domain name, it checks to see if the
+resource set consists of a CNAME record with a matching class. If so, the name server
+includes the CNAME record in the response and restarts the query at the domain name
+specified in the data field of the CNAME record. The one exception to this rule is that
+queries which match the CNAME type are not restarted.
+
+CNAME RR 会使 DNS 软件执行特殊处理。当名称服务器无法在与域名关联的资源集合中找到所需 RR
+时，它会检查该资源集合是否由一个类相匹配的 CNAME 记录组成。若是，名称服务器就把该 CNAME
+记录加入响应，并从 CNAME 记录数据字段指定的域名重新开始查询。唯一的例外是：查询类型本身
+匹配 CNAME 时，不重新开始查询。
+
+
+For example, suppose a name server was processing a query with for USC-ISIC.ARPA, asking
+for type A information, and had the following resource records:
+
+例如，假设名称服务器正在处理对 USC-ISIC.ARPA 的查询，所请求的是 A 类型信息，并且服务器拥
+有以下资源记录：
+
+
+    USC-ISIC.ARPA   IN      CNAME   C.ISI.EDU
+
+
+    C.ISI.EDU       IN      A       10.0.0.52
+
+
+Both of these RRs would be returned in the response to the type A query, while a type
+CNAME or * query should return just the CNAME.
+
+对 A 类型查询的响应会同时返回这两个 RR，而 CNAME 类型或 * 类型查询只应返回 CNAME。
+
+
+Domain names in RRs which point at another name should always point at the primary name
+and not the alias. This avoids extra indirections in accessing information. For example,
+the address to name RR for the above host should be:
+
+RR 中指向另一个名称的域名应始终指向主名称，而不是别名。这样可以避免访问信息时产生额外的
+间接跳转。例如，上述主机从地址到名称的 RR 应为：
+
+
+    52.0.0.10.IN-ADDR.ARPA  IN      PTR     C.ISI.EDU
+
+
+rather than pointing at USC-ISIC.ARPA. Of course, by the robustness principle, domain
+software should not fail when presented with CNAME chains or loops; CNAME chains should
+be followed and CNAME loops signalled as an error.
+
+而不是指向 USC-ISIC.ARPA。当然，根据健壮性原则，域名软件在遇到 CNAME 链或环时不应直接失
+效；它应沿 CNAME 链继续处理，并把 CNAME 环报告为错误。
+
+
+3.7. Queries
+
+3.7. 查询
+
+
+Queries are messages which may be sent to a name server to provoke a response. In the
+Internet, queries are carried in UDP datagrams or over TCP connections. The response by
+the name server either answers the question posed in the query, refers the requester to
+another set of name servers, or signals some error condition.
+
+查询是发送给名称服务器以促使其作出响应的报文。在 Internet 中，查询通过 UDP 数据报或 TCP
+连接承载。名称服务器的响应要么回答查询提出的问题，要么把请求者转介给另一组名称服务器，要
+么报告某种错误状态。
+
+
+In general, the user does not generate queries directly, but instead makes a request to
+a resolver which in turn sends one or more queries to name servers and deals with the
+error conditions and referrals that may result. Of course, the possible questions which
+can be asked in a query does shape the kind of service a resolver can provide.
+
+通常，用户不会直接生成查询，而是向解析器发出请求；解析器再向名称服务器发送一个或多个查询，
+并处理由此产生的错误状态和转介。当然，查询中能够提出哪些问题，会决定解析器能够提供何种服
+务。
+
+
+DNS queries and responses are carried in a standard message format. The message format
+has a header containing a number of fixed fields which are always present, and four
+sections which carry query parameters and RRs.
+
+DNS 查询和响应采用标准报文格式承载。该格式包含一个首部，其中有若干始终存在的固定字段；另
+有四个承载查询参数和 RR 的区段。
+
+
+The most important field in the header is a four bit field called an opcode which
+separates different queries. Of the possible 16 values, one (standard query) is part of
+the official protocol, two (inverse query and status query) are options, one
+(completion) is obsolete, and the rest are unassigned.
+
+首部中最重要的字段是一个称为操作码（opcode）的 4 位字段，用于区分不同查询。在 16 个可能
+值中，一个值（标准查询）属于正式协议，两个值（反向查询和状态查询）是可选功能，一个值（补
+全）已经废弃，其余值尚未分配。
+
+
+The four sections are:
+
+四个区段是：
+
+
+Question Carries the query name and other query parameters.
+
+Question（问题区段）：承载查询名称和其他查询参数。
+
+
+Answer Carries RRs which directly answer the query.
+
+Answer（回答区段）：承载直接回答查询的 RR。
+
+
+Authority Carries RRs which describe other authoritative servers. May optionally carry
+the SOA RR for the authoritative data in the answer section.
+
+Authority（权威区段）：承载描述其他权威服务器的 RR；也可以选择性地承载与回答区段中权威数
+据对应的 SOA RR。
+
+
+Additional Carries RRs which may be helpful in using the RRs in the other sections.
+
+Additional（附加区段）：承载可能有助于使用其他区段中 RR 的 RR。
+
+
+Note that the content, but not the format, of these sections varies with header opcode.
+
+请注意，这些区段的内容会随首部操作码而变化，但格式不会变化。
+
+
+3.7.1. Standard queries
+
+3.7.1. 标准查询
+
+
+A standard query specifies a target domain name (QNAME), query type (QTYPE), and query
+class (QCLASS) and asks for RRs which match. This type of query makes up such a vast
+majority of DNS queries that we use the term "query" to mean standard query unless
+otherwise specified. The QTYPE and QCLASS fields are each 16 bits long, and are a
+superset of defined types and classes.
+
+标准查询指定目标域名（QNAME）、查询类型（QTYPE）和查询类（QCLASS），并请求与之匹配的 RR。
+绝大多数 DNS 查询都属于这种类型，因此除非另有说明，本备忘录所说的“查询”即指标准查询。
+QTYPE 和 QCLASS 字段各为 16 位，并且它们所能表示的范围是已定义类型和类的超集。
+
+
+The QTYPE field may contain:
+
+QTYPE 字段可以包含：
+
+
+<any type> matches just that type. (e.g., A, PTR).
+
+<任意类型>：只匹配该类型，例如 A、PTR。
+
+
+AXFR special zone transfer QTYPE.
+
+AXFR：用于区域传送的特殊 QTYPE。
+
+
+MAILB matches all mail box related RRs (e.g. MB and MG).
+
+MAILB：匹配所有与邮箱有关的 RR，例如 MB 和 MG。
+
+
+   * matches all RR types.
+
+*：匹配所有 RR 类型。
+
+
+The QCLASS field may contain:
+
+QCLASS 字段可以包含：
+
+
+<any class> matches just that class (e.g., IN, CH).
+
+<任意类>：只匹配该类，例如 IN、CH。
+
+
+   * matches aLL RR classes.
+
+*：匹配所有 RR 类。
+
+
+Using the query domain name, QTYPE, and QCLASS, the name server looks for matching RRs.
+In addition to relevant records, the name server may return RRs that point toward a name
+server that has the desired information or RRs that are expected to be useful in
+interpreting the relevant RRs. For example, a name server that doesn't have the
+requested information may know a name server that does; a name server that returns a
+domain name in a relevant RR may also return the RR that binds that domain name to an
+address.
+
+名称服务器使用查询域名、QTYPE 和 QCLASS 查找匹配的 RR。除了相关记录之外，名称服务器还可
+以返回指向掌握所需信息的名称服务器的 RR，或者返回预计有助于解释相关 RR 的其他 RR。例如，
+不掌握所请求信息的名称服务器可能知道哪个名称服务器掌握该信息；当名称服务器在相关 RR 中返
+回一个域名时，也可以同时返回把该域名绑定到地址的 RR。
+
+
+For example, a mailer tying to send mail to Mockapetris@ISI.EDU might ask the resolver
+for mail information about ISI.EDU, resulting in a query for QNAME=ISI.EDU, QTYPE=MX,
+QCLASS=IN. The response's answer section would be:
+
+例如，邮件程序试图向 Mockapetris@ISI.EDU 发送邮件时，可能会向解析器请求 ISI.EDU 的邮件信
+息，从而产生 QNAME=ISI.EDU、QTYPE=MX、QCLASS=IN 的查询。响应的回答区段将是：
+
+
+    ISI.EDU.        MX      10 VENERA.ISI.EDU.
+                    MX      10 VAXA.ISI.EDU.
+
+
+while the additional section might be:
+
+而附加区段可能是：
+
+
+    VAXA.ISI.EDU.   A       10.2.0.27
+                    A       128.9.0.33
+    VENERA.ISI.EDU. A       10.1.0.52
+                    A       128.9.0.32
+
+
+Because the server assumes that if the requester wants mail exchange information, it
+will probably want the addresses of the mail exchanges soon afterward.
+
+这是因为服务器假定：如果请求者需要邮件交换信息，那么它很可能很快还会需要这些邮件交换器的
+地址。
+
+
+Note that the QCLASS=* construct requires special interpretation regarding authority.
+Since a particular name server may not know all of the classes available in the domain
+system, it can never know if it is authoritative for all classes. Hence responses to
+QCLASS=* queries can never be authoritative.
+
+请注意，QCLASS=* 结构在权威性方面需要特殊解释。由于某个名称服务器可能并不知道域名系统中
+所有可用的类，因此它永远无法确定自己是否对所有类都具有权威性。所以，对 QCLASS=* 查询的响
+应绝不可能是权威响应。
+
+
+3.7.2. Inverse queries (Optional)
+
+3.7.2. 反向查询（可选）
+
+
+Name servers may also support inverse queries that map a particular resource to a domain
+name or domain names that have that resource. For example, while a standard query might
+map a domain name to a SOA RR, the corresponding inverse query might map the SOA RR back
+to the domain name.
+
+名称服务器还可以支持反向查询：把某个特定资源映射到拥有该资源的一个或多个域名。例如，标准
+查询可以把域名映射到 SOA RR，而对应的反向查询则可以把该 SOA RR 映射回域名。
+
+
+Implementation of this service is optional in a name server, but all name servers must
+at least be able to understand an inverse query message and return a not-implemented
+error response.
+
+名称服务器是否实现此服务是可选的，但所有名称服务器至少都必须能够理解反向查询报文，并返回
+“未实现”错误响应。
+
+
+The domain system cannot guarantee the completeness or uniqueness of inverse queries
+because the domain system is organized by domain name rather than by host address or any
+other resource type. Inverse queries are primarily useful for debugging and database
+maintenance activities.
+
+域名系统无法保证反向查询结果的完整性或唯一性，因为域名系统是按域名组织的，而不是按主机地
+址或其他资源类型组织的。反向查询主要用于调试和数据库维护。
+
+
+Inverse queries may not return the proper TTL, and do not indicate cases where the
+identified RR is one of a set (for example, one address for a host having multiple
+addresses). Therefore, the RRs returned in inverse queries should never be cached.
+
+反向查询可能不会返回正确的 TTL，也不会指出所识别 RR 是某个集合成员的情况，例如一台拥有多
+个地址的主机中的某一个地址。因此，反向查询返回的 RR 绝不应被缓存。
+
+
+Inverse queries are NOT an acceptable method for mapping host addresses to host names;
+use the IN-ADDR.ARPA domain instead.
+
+反向查询不是把主机地址映射为主机名的可接受方法；应改用 IN-ADDR.ARPA 域。
+
+
+A detailed discussion of inverse queries is contained in [RFC-1035].
+
+[RFC-1035] 对反向查询进行了详细讨论。
+
+
+3.8. Status queries (Experimental)
+
+3.8. 状态查询（实验性）
+
+
+To be defined.
+
+尚待定义。
+
+
+3.9. Completion queries (Obsolete)
+
+3.9. 补全查询（已废弃）
+
+
+The optional completion services described in RFCs 882 and 883 have been deleted.
+Redesigned services may become available in the future, or the opcodes may be reclaimed
+for other use.
+
+RFC 882 和 RFC 883 中描述的可选补全服务已经删除。将来可能提供重新设计的服务，或者这些操
+作码可能被收回用于其他用途。
+
+
+4. NAME SERVERS
+
+4. 名称服务器
+
+
+4.1. Introduction
+
+4.1. 引言
+
+
+Name servers are the repositories of information that make up the domain database. The
+database is divided up into sections called zones, which are distributed among the name
+servers. While name servers can have several optional functions and sources of data, the
+essential task of a name server is to answer queries using data in its zones. By design,
+name servers can answer queries in a simple manner; the response can always be generated
+using only local data, and either contains the answer to the question or a referral to
+other name servers "closer" to the desired information.
+
+名称服务器是构成域数据库的信息存储库。数据库被划分为称为区域的若干部分，并分布到各名称服
+务器。名称服务器可以具有多种可选功能和数据来源，但其基本任务是使用自身区域中的数据回答查
+询。按照设计，名称服务器可以用简单方式回答查询：响应始终能够只使用本地数据生成，并且要么
+包含问题的答案，要么包含指向更“接近”所需信息的其他名称服务器的转介。
+
+
+A given zone will be available from several name servers to insure its availability in
+spite of host or communication link failure. By administrative fiat, we require every
+zone to be available on at least two servers, and many zones have more redundancy than
+that.
+
+一个给定区域会由多个名称服务器提供，以确保即使主机或通信链路发生故障，该区域仍然可用。根
+据管理规定，每个区域必须至少在两台服务器上可用，许多区域的冗余程度还要更高。
+
+
+A given name server will typically support one or more zones, but this gives it
+authoritative information about only a small section of the domain tree. It may also
+have some cached non-authoritative data about other parts of the tree. The name server
+marks its responses to queries so that the requester can tell whether the response comes
+from authoritative data or not.
+
+一个给定名称服务器通常会支持一个或多个区域，但因此获得权威信息的只会是域树中的一小部分。
+它还可能缓存树中其他部分的一些非权威数据。名称服务器会在查询响应中作出标记，使请求者能够
+判断响应是否来自权威数据。
+
+
+4.2. How the database is divided into zones
+
+4.2. 数据库如何划分为区域
+
+
+The domain database is partitioned in two ways: by class, and by "cuts" made in the name
+space between nodes.
+
+域数据库通过两种方式划分：按类划分，以及在名称空间的节点之间进行“切割”。
+
+
+The class partition is simple. The database for any class is organized, delegated, and
+maintained separately from all other classes. Since, by convention, the name spaces are
+the same for all classes, the separate classes can be thought of as an array of parallel
+namespace trees. Note that the data attached to nodes will be different for these
+different parallel classes. The most common reasons for creating a new class are the
+necessity for a new data format for existing types or a desire for a separately managed
+version of the existing name space.
+
+按类划分很简单。任意一个类的数据库都与其他所有类分别组织、委派和维护。按照约定，所有类的
+名称空间相同，因此各个类可以看作一组彼此平行的名称空间树。需要注意，这些平行类中附着在节
+点上的数据会有所不同。创建新类最常见的原因，是现有类型需要一种新的数据格式，或者希望得到
+一份独立管理的现有名称空间版本。
+
+
+Within a class, "cuts" in the name space can be made between any two adjacent nodes.
+After all cuts are made, each group of connected name space is a separate zone. The zone
+is said to be authoritative for all names in the connected region. Note that the "cuts"
+in the name space may be in different places for different classes, the name servers may
+be different, etc.
+
+在一个类内部，可以在名称空间任意两个相邻节点之间进行“切割”。完成所有切割后，每一组彼此连
+通的名称空间构成一个独立区域。该区域被认为对这个连通范围内的所有名称具有权威性。不同类的
+名称空间切割位置可以不同，所使用的名称服务器也可以不同，诸如此类。
+
+
+These rules mean that every zone has at least one node, and hence domain name, for which
+it is authoritative, and all of the nodes in a particular zone are connected. Given, the
+tree structure, every zone has a highest node which is closer to the root than any other
+node in the zone. The name of this node is often used to identify the zone.
+
+这些规则意味着，每个区域至少包含一个由其负责的节点，因而至少包含一个由其负责的域名；同时，
+一个特定区域内的所有节点彼此连通。由于名称空间是树形结构，每个区域都有一个最高节点，它比
+区域中其他任何节点更接近根。该节点的名称经常被用来标识区域。
+
+
+It would be possible, though not particularly useful, to partition the name space so
+that each domain name was in a separate zone or so that all nodes were in a single zone.
+Instead, the database is partitioned at points where a particular organization wants to
+take over control of a subtree. Once an organization controls its own zone it can
+unilaterally change the data in the zone, grow new tree sections connected to the zone,
+delete existing nodes, or delegate new subzones under its zone.
+
+可以把名称空间划分到每个域名各自属于一个独立区域，也可以把所有节点放进单一区域，尽管这两
+种方式都不太实用。实际做法是在某个组织希望接管一棵子树的控制权处划分数据库。一旦组织控制
+了自己的区域，它就可以单方面修改区域数据、扩展与该区域连接的新树枝、删除现有节点，或者在
+该区域之下委派新的子区域。
+
+
+If the organization has substructure, it may want to make further internal partitions to
+achieve nested delegations of name space control. In some cases, such divisions are made
+purely to make database maintenance more convenient.
+
+如果组织内部还有层级结构，它可能希望继续进行内部划分，以实现名称空间控制权的嵌套委派。在
+某些情况下，这种划分纯粹是为了让数据库维护更加方便。
+
+
+4.2.1. Technical considerations
+
+4.2.1. 技术方面的考虑
+
+
+The data that describes a zone has four major parts:
+
+描述一个区域的数据主要分为四部分：
+
+
+   - Authoritative data for all nodes within the zone.
+
+   - 区域内所有节点的权威数据。
+
+
+   - Data that defines the top node of the zone (can be thought of as part of the
+     authoritative data).
+
+   - 定义区域顶端节点的数据，可以把它看作权威数据的一部分。
+
+
+   - Data that describes delegated subzones, i.e., cuts around the bottom of the zone.
+
+   - 描述已委派子区域的数据，即区域底部周围的切割。
+
+
+   - Data that allows access to name servers for subzones (sometimes called "glue"
+     data).
+
+   - 用于访问子区域名称服务器的数据，有时称为“胶水”数据。
+
+
+All of this data is expressed in the form of RRs, so a zone can be completely described
+in terms of a set of RRs. Whole zones can be transferred between name servers by
+transferring the RRs, either carried in a series of messages or by FTPing a master file
+which is a textual representation.
+
+所有这些数据都用 RR 表示，因此一个 RR 集合可以完整描述一个区域。通过传送 RR，可以在名称
+服务器之间传送整个区域；这些 RR 可以承载在一系列报文中，也可以通过 FTP 传送作为文本表示
+的主文件。
+
+
+The authoritative data for a zone is simply all of the RRs attached to all of the nodes
+from the top node of the zone down to leaf nodes or nodes above cuts around the bottom
+edge of the zone.
+
+一个区域的权威数据，就是附着在该区域所有节点上的全部 RR：范围从区域的顶端节点向下，一直
+到叶节点或区域底部切割之上的节点。
+
+
+Though logically part of the authoritative data, the RRs that describe the top node of
+the zone are especially important to the zone's management. These RRs are of two types:
+name server RRs that list, one per RR, all of the servers for the zone, and a single SOA
+RR that describes zone management parameters.
+
+尽管从逻辑上说，描述区域顶端节点的 RR 属于权威数据，但它们对区域管理尤其重要。这些 RR 有
+两类：名称服务器 RR，每个 RR 列出该区域的一台服务器；以及一个描述区域管理参数的 SOA RR。
+
+
+The RRs that describe cuts around the bottom of the zone are NS RRs that name the
+servers for the subzones. Since the cuts are between nodes, these RRs are NOT part of
+the authoritative data of the zone, and should be exactly the same as the corresponding
+RRs in the top node of the subzone. Since name servers are always associated with zone
+boundaries, NS RRs are only found at nodes which are the top node of some zone. In the
+data that makes up a zone, NS RRs are found at the top node of the zone (and are
+authoritative) and at cuts around the bottom of the zone (where they are not
+authoritative), but never in between.
+
+描述区域底部切割的 RR 是 NS RR，它们给出子区域的服务器名称。由于切割发生在节点之间，这些
+RR 不属于该区域的权威数据，并且应当与子区域顶端节点中对应的 RR 完全相同。名称服务器总是
+与区域边界相关联，所以 NS RR 只会出现在某个区域的顶端节点。在构成区域的数据中，NS RR 会
+出现在区域顶端节点（此时具有权威性）以及区域底部周围的切割处（此时不具有权威性），但绝不
+会出现在二者之间。
+
+
+One of the goals of the zone structure is that any zone have all the data required to
+set up communications with the name servers for any subzones. That is, parent zones have
+all the information needed to access servers for their children zones. The NS RRs that
+name the servers for subzones are often not enough for this task since they name the
+servers, but do not give their addresses. In particular, if the name of the name server
+is itself in the subzone, we could be faced with the situation where the NS RRs tell us
+that in order to learn a name server's address, we should contact the server using the
+address we wish to learn. To fix this problem, a zone contains "glue" RRs which are not
+part of the authoritative data, and are address RRs for the servers. These RRs are only
+necessary if the name server's name is "below" the cut, and are only used as part of a
+referral response.
+
+区域结构的目标之一，是使任意区域都具有与其任何子区域名称服务器建立通信所需的全部数据。也
+就是说，父区域应拥有访问子区域服务器所需的全部信息。仅有命名子区域服务器的 NS RR 通常不
+足以完成这一任务，因为它们只给出服务器名称，却不给出服务器地址。特别是，当名称服务器的名
+称本身位于该子区域中时，可能出现循环依赖：NS RR 告诉我们，要获知名称服务器的地址，就应使
+用这个尚未获知的地址去联系该服务器。为解决这一问题，区域中包含不属于权威数据的“胶水”RR，
+它们是这些服务器的地址 RR。只有当名称服务器的名称位于切割点“下方”时才需要这些 RR，并且它
+们只作为转介响应的一部分使用。
+
+
+4.2.2. Administrative considerations
+
+4.2.2. 管理方面的考虑
+
+
+When some organization wants to control its own domain, the first step is to identify
+the proper parent zone, and get the parent zone's owners to agree to the delegation of
+control. While there are no particular technical constraints dealing with where in the
+tree this can be done, there are some administrative groupings discussed in [RFC-1032]
+which deal with top level organization, and middle level zones are free to create their
+own rules. For example, one university might choose to use a single zone, while another
+might choose to organize by subzones dedicated to individual departments or schools.
+[RFC-1033] catalogs available DNS software an discusses administration procedures.
+
+当某个组织希望控制自己的域时，第一步是确定适当的父区域，并取得父区域所有者同意委派控制权。
+虽然从技术上说，树中的委派位置没有特别限制，但 [RFC-1032] 讨论了与顶层组织有关的一些管理
+分组；中层区域可以自由制定自己的规则。例如，一所大学可能选择只使用一个区域，另一所大学则
+可能按照院系或学院分别建立子区域。[RFC-1033] 列出了可用的 DNS 软件并讨论了管理过程。
+
+
+Once the proper name for the new subzone is selected, the new owners should be required
+to demonstrate redundant name server support. Note that there is no requirement that the
+servers for a zone reside in a host which has a name in that domain. In many cases, a
+zone will be more accessible to the internet at large if its servers are widely
+distributed rather than being within the physical facilities controlled by the same
+organization that manages the zone. For example, in the current DNS, one of the name
+servers for the United Kingdom, or UK domain, is found in the US. This allows US hosts
+to get UK data without using limited transatlantic bandwidth.
+
+为新子区域选定适当名称后，应要求新所有者证明其具备冗余名称服务器支持。区域服务器并不必须
+运行在名称属于该域的主机上。很多情况下，如果区域服务器广泛分布，而不是全部位于由区域管理
+组织控制的物理设施内，那么整个 Internet 对该区域的访问性会更好。例如，在当时的 DNS 中，
+英国即 UK 域的一台名称服务器位于美国。这样，美国主机无需占用有限的跨大西洋带宽就能获取
+UK 数据。
+
+
+As the last installation step, the delegation NS RRs and glue RRs necessary to make the
+delegation effective should be added to the parent zone. The administrators of both
+zones should insure that the NS and glue RRs which mark both sides of the cut are
+consistent and remain so.
+
+安装的最后一步，是把使委派生效所需的委派 NS RR 和胶水 RR 加入父区域。两个区域的管理员都
+应确保标记切割两侧的 NS RR 和胶水 RR 保持一致。
+
+
+4.3. Name server internals
+
+4.3. 名称服务器内部结构
+
+
+4.3.1. Queries and responses
+
+4.3.1. 查询与响应
+
+
+The principal activity of name servers is to answer standard queries. Both the query and
+its response are carried in a standard message format which is described in [RFC-1035].
+The query contains a QTYPE, QCLASS, and QNAME, which describe the types and classes of
+desired information and the name of interest.
+
+名称服务器的主要活动是回答标准查询。查询和响应都采用 [RFC-1035] 所述的标准报文格式。查询
+包含 QTYPE、QCLASS 和 QNAME，它们分别描述所需信息的类型、类以及所关注的名称。
+
+
+The way that the name server answers the query depends upon whether it is operating in
+recursive mode or not:
+
+名称服务器回答查询的方式取决于它是否以递归模式运行：
+
+
+   - The simplest mode for the server is non-recursive, since it can answer queries
+     using only local information: the response contains an error, the answer, or a
+     referral to some other server "closer" to the answer. All name servers must
+     implement non-recursive queries.
+
+   - 对服务器而言，最简单的是非递归模式，因为它只需使用本地信息回答查询：响应包含错误、
+     答案，或者转介到某个更“接近”答案的其他服务器。所有名称服务器都必须实现非递归查询。
+
+
+   - The simplest mode for the client is recursive, since in this mode the name server
+     acts in the role of a resolver and returns either an error or the answer, but never
+     referrals. This service is optional in a name server, and the name server may also
+     choose to restrict the clients which can use recursive mode.
+
+   - 对客户端而言，最简单的是递归模式，因为此时名称服务器充当解析器，只返回错误或答案，
+     绝不返回转介。名称服务器是否提供此服务是可选的，并且名称服务器还可以限制哪些客户端
+     能够使用递归模式。
+
+
+Recursive service is helpful in several situations:
+
+递归服务在以下几种情况下很有帮助：
+
+
+   - a relatively simple requester that lacks the ability to use anything other than a
+     direct answer to the question.
+
+   - 请求者相对简单，除了直接问题答案之外，无法使用其他形式的响应。
+
+
+   - a request that needs to cross protocol or other boundaries and can be sent to a
+     server which can act as intermediary.
+
+   - 请求需要跨越协议边界或其他边界，可以把它发送给能够充当中介的服务器。
+
+
+   - a network where we want to concentrate the cache rather than having a separate
+     cache for each client.
+
+   - 希望把缓存集中在网络中的某处，而不是让每个客户端分别维护缓存。
+
+
+Non-recursive service is appropriate if the requester is capable of pursuing referrals
+and interested in information which will aid future requests.
+
+如果请求者能够自行跟进转介，并且对有助于将来请求的信息感兴趣，那么非递归服务更合适。
+
+
+The use of recursive mode is limited to cases where both the client and the name server
+agree to its use. The agreement is negotiated through the use of two bits in query and
+response messages:
+
+只有客户端和名称服务器都同意使用递归模式时，才会使用该模式。双方通过查询和响应报文中的两
+个比特协商：
+
+
+   - The recursion available, or RA bit, is set or cleared by a name server in all
+     responses. The bit is true if the name server is willing to provide recursive
+     service for the client, regardless of whether the client requested recursive
+     service. That is, RA signals availability rather than use.
+
+   - “递归可用”（recursion available，RA）比特由名称服务器在所有响应中置位或清零。如果名
+     称服务器愿意为该客户端提供递归服务，此比特为真，而不论客户端是否请求了递归服务。也
+     就是说，RA 表示服务是否可用，而不是本次是否使用。
+
+
+   - Queries contain a bit called recursion desired or RD. This bit specifies specifies
+     whether the requester wants recursive service for this query. Clients may request
+     recursive service from any name server, though they should depend upon receiving it
+     only from servers which have previously sent an RA, or servers which have agreed to
+     provide service through private agreement or some other means outside of the DNS
+     protocol.
+
+   - 查询中包含一个称为“期望递归”（recursion desired，RD）的比特。该比特指定请求者是否希
+     望本次查询使用递归服务。客户端可以向任意名称服务器请求递归服务，但只有服务器先前发
+     送过 RA，或者服务器通过私下约定或 DNS 协议之外的其他方式同意提供服务时，客户端才应
+     依赖该服务。
+
+
+The recursive mode occurs when a query with RD set arrives at a server which is willing
+to provide recursive service; the client can verify that recursive mode was used by
+checking that both RA and RD are set in the reply. Note that the name server should
+never perform recursive service unless asked via RD, since this interferes with trouble
+shooting of name servers and their databases.
+
+当带有 RD 置位的查询到达一台愿意提供递归服务的服务器时，就会进入递归模式；客户端可以检查
+回复中的 RA 和 RD 是否都已置位，以确认确实使用了递归模式。名称服务器绝不应在没有通过 RD
+收到请求时主动执行递归服务，因为这会妨碍名称服务器及其数据库的故障诊断。
+
+
+If recursive service is requested and available, the recursive response to a query will
+be one of the following:
+
+如果请求了递归服务并且该服务可用，查询的递归响应将是以下情况之一：
+
+
+   - The answer to the query, possibly preface by one or more CNAME RRs that specify
+     aliases encountered on the way to an answer.
+
+   - 查询的答案，前面可能带有一个或多个 CNAME RR，用于说明在获得答案的途中遇到的别名。
+
+
+   - A name error indicating that the name does not exist. This may include CNAME RRs
+     that indicate that the original query name was an alias for a name which does not
+     exist.
+
+   - 名称错误，表示该名称不存在；其中可能包含 CNAME RR，说明原始查询名称是一个指向不存在
+     名称的别名。
+
+
+   - A temporary error indication.
+
+   - 临时错误指示。
+
+
+If recursive service is not requested or is not available, the non-recursive response
+will be one of the following:
+
+如果没有请求递归服务，或者递归服务不可用，非递归响应将是以下情况之一：
+
+
+   - An authoritative name error indicating that the name does not exist.
+
+   - 权威名称错误，表示该名称不存在。
+
+
+   - A temporary error indication.
+
+   - 临时错误指示。
+
+
+   - Some combination of:
+
+   - 以下内容的某种组合：
+
+
+RRs that answer the question, together with an indication whether the data comes from a
+zone or is cached.
+
+回答问题的 RR，并附带说明数据来自区域还是来自缓存。
+
+
+A referral to name servers which have zones which are closer ancestors to the name than
+the server sending the reply.
+
+转介到某些名称服务器；这些服务器所负责区域是该名称更接近的祖先区域，相比发送回复的服务器
+更接近目标名称。
+
+
+   - RRs that the name server thinks will prove useful to the requester.
+
+   - 名称服务器认为可能对请求者有用的 RR。
+
+
+4.3.2. Algorithm
+
+4.3.2. 算法
+
+
+The actual algorithm used by the name server will depend on the local OS and data
+structures used to store RRs. The following algorithm assumes that the RRs are organized
+in several tree structures, one for each zone, and another for the cache:
+
+名称服务器实际使用的算法取决于本地操作系统以及存储 RR 所用的数据结构。以下算法假定 RR 被
+组织在若干树结构中，每个区域一棵树，缓存另有一棵树：
+
+
+   1. Set or clear the value of recursion available in the response depending on whether
+      the name server is willing to provide recursive service. If recursive service is
+      available and requested via the RD bit in the query, go to step 5, otherwise step
+      2.
+
+1. 根据名称服务器是否愿意提供递归服务，设置或清除响应中的“递归可用”值。如果递归服务可用，
+并且查询通过 RD 比特请求了递归服务，则转到步骤 5；否则转到步骤 2。
+
+
+   2. Search the available zones for the zone which is the nearest ancestor to QNAME. If
+      such a zone is found, go to step 3, otherwise step 4.
+
+2. 在可用区域中查找 QNAME 最近的祖先区域。如果找到，转到步骤 3；否则转到步骤 4。
+
+
+   3. Start matching down, label by label, in the zone. The matching process can
+      terminate several ways:
+
+3. 在该区域中逐标签向下匹配。匹配过程可能以若干方式结束：
+
+
+   a. If the whole of QNAME is matched, we have found the node.
+
+   a. 如果整个 QNAME 都匹配，说明已经找到该节点。
+
+
+If the data at the node is a CNAME, and QTYPE doesn't match CNAME, copy the CNAME RR
+into the answer section of the response, change QNAME to the canonical name in the CNAME
+RR, and go back to step 1.
+
+如果节点上的数据是 CNAME，且 QTYPE 不匹配 CNAME，则把该 CNAME RR 复制到响应的回答区段，
+把 QNAME 改为 CNAME RR 中的规范名称，然后返回步骤 1。
+
+
+Otherwise, copy all RRs which match QTYPE into the answer section and go to step 6.
+
+否则，把所有匹配 QTYPE 的 RR 复制到回答区段，然后转到步骤 6。
+
+
+   b. If a match would take us out of the authoritative data, we have a referral. This
+      happens when we encounter a node with NS RRs marking cuts along the bottom of a
+      zone.
+
+   b. 如果继续匹配会离开权威数据范围，说明遇到了转介。这发生在遇到一个带有 NS RR、用于标
+      记区域底部切割的节点时。
+
+
+Copy the NS RRs for the subzone into the authority section of the reply. Put whatever
+addresses are available into the additional section, using glue RRs if the addresses are
+not available from authoritative data or the cache. Go to step 4.
+
+把子区域的 NS RR 复制到回复的权威区段。把所有可用地址放入附加区段；如果权威数据或缓存中
+没有这些地址，则使用胶水 RR。然后转到步骤 4。
+
+
+   c. If at some label, a match is impossible (i.e., the corresponding label does not
+      exist), look to see if a the "*" label exists.
+
+   c. 如果在某个标签处无法继续匹配，即相应标签不存在，则检查是否存在“*”标签。
+
+
+If the "*" label does not exist, check whether the name we are looking for is the
+original QNAME in the query or a name we have followed due to a CNAME. If the name is
+original, set an authoritative name error in the response and exit. Otherwise just exit.
+
+如果“*”标签不存在，检查当前查找的名称是查询中的原始 QNAME，还是由于跟随 CNAME 而得到的名
+称。如果是原始名称，则在响应中设置权威名称错误并退出；否则直接退出。
+
+
+If the "*" label does exist, match RRs at that node against QTYPE. If any match, copy
+them into the answer section, but set the owner of the RR to be QNAME, and not the node
+with the "*" label. Go to step 6.
+
+如果“*”标签存在，则用该节点上的 RR 匹配 QTYPE。若有任何匹配项，把它们复制到回答区段，但
+把 RR 的所有者设置为 QNAME，而不是带有“*”标签的节点。然后转到步骤 6。
+
+
+   4. Start matching down in the cache. If QNAME is found in the cache, copy all RRs
+      attached to it that match QTYPE into the answer section. If there was no
+      delegation from authoritative data, look for the best one from the cache, and put
+      it in the authority section. Go to step 6.
+
+   4. 开始在缓存中逐级向下匹配。如果在缓存中找到 QNAME，把附着在它上面且匹配 QTYPE 的所
+      有 RR 复制到回答区段。如果权威数据没有提供委派，则从缓存中寻找最佳委派并放入权威区
+      段。然后转到步骤 6。
+
+
+   5. Using the local resolver or a copy of its algorithm (see resolver section of this
+      memo) to answer the query. Store the results, including any intermediate CNAMEs,
+      in the answer section of the response.
+
+5. 使用本地解析器或其算法副本（见本备忘录的解析器部分）回答查询。把结果，包括任何中间
+CNAME，存入响应的回答区段。
+
+
+   6. Using local data only, attempt to add other RRs which may be useful to the
+      additional section of the query. Exit.
+
+6. 只使用本地数据，尝试把可能有用的其他 RR 加入查询响应的附加区段，然后退出。
+
+
+4.3.3. Wildcards
+
+4.3.3. 通配符
+
+
+In the previous algorithm, special treatment was given to RRs with owner names starting
+with the label "*". Such RRs are called wildcards. Wildcard RRs can be thought of as
+instructions for synthesizing RRs. When the appropriate conditions are met, the name
+server creates RRs with an owner name equal to the query name and contents taken from
+the wildcard RRs.
+
+在前述算法中，对所有者名称以“*”标签开头的 RR 进行了特殊处理。这类 RR 称为通配符。可以把
+通配符 RR 看作合成 RR 的指令。当满足适当条件时，名称服务器会创建所有者名称等于查询名称、
+内容取自通配符 RR 的新 RR。
+
+
+This facility is most often used to create a zone which will be used to forward mail
+from the Internet to some other mail system. The general idea is that any name in that
+zone which is presented to server in a query will be assumed to exist, with certain
+properties, unless explicit evidence exists to the contrary. Note that the use of the
+term zone here, instead of domain, is intentional; such defaults do not propagate across
+zone boundaries, although a subzone may choose to achieve that appearance by setting up
+similar defaults.
+
+这一功能最常用于创建一个把 Internet 邮件转发到其他邮件系统的区域。一般思路是：除非存在明
+确的相反证据，否则查询中提交给服务器的该区域内任意名称，都被假定为存在并具有某些属性。这
+里有意使用“区域”而不是“域”一词；这种默认值不会跨越区域边界传播，不过子区域可以通过设置类
+似默认值来造成相同效果。
+
+
+The contents of the wildcard RRs follows the usual rules and formats for RRs. The
+wildcards in the zone have an owner name that controls the query names they will match.
+The owner name of the wildcard RRs is of the form "*.<anydomain>", where <anydomain> is
+any domain name. <anydomain> should not contain other * labels, and should be in the
+authoritative data of the zone. The wildcards potentially apply to descendants of
+<anydomain>, but not to <anydomain> itself. Another way to look at this is that the "*"
+label always matches at least one whole label and sometimes more, but always whole
+labels.
+
+通配符 RR 的内容遵循普通 RR 的规则和格式。区域中的通配符具有一个所有者名称，用于控制它们
+能够匹配哪些查询名称。通配符 RR 的所有者名称形式为“*.<anydomain>”，其中 <anydomain> 是任
+意域名。<anydomain> 不应包含其他“*”标签，并且应属于该区域的权威数据。通配符可能适用于
+<anydomain> 的后代，但不适用于 <anydomain> 本身。换一种说法，“*”标签始终至少匹配一个完整
+标签，有时会匹配多个标签，但只匹配完整标签。
+
+
+Wildcard RRs do not apply:
+
+通配符 RR 不适用于以下情况：
+
+
+   - When the query is in another zone. That is, delegation cancels the wildcard
+     defaults.
+
+   - 查询位于另一个区域。也就是说，委派会取消通配符默认值。
+
+
+   - When the query name or a name between the wildcard domain and the query name is
+     know to exist. For example, if a wildcard RR has an owner name of "*.X", and the
+     zone also contains RRs attached to B.X, the wildcards would apply to queries for
+     name Z.X (presuming there is no explicit information for Z.X), but not to B.X,
+     A.B.X, or X.
+
+   - 已知查询名称本身存在，或者已知通配符域与查询名称之间的某个名称存在。例如，如果一个
+     通配符 RR 的所有者名称是“*.X”，并且区域中还包含附着在 B.X 上的 RR，那么该通配符会应
+     用于名称 Z.X 的查询（假定没有 Z.X 的显式信息），但不会应用于 B.X、A.B.X 或 X。
+
+
+A * label appearing in a query name has no special effect, but can be used to test for
+wildcards in an authoritative zone; such a query is the only way to get a response
+containing RRs with an owner name with * in it. The result of such a query should not be
+cached.
+
+查询名称中出现“*”标签没有特殊作用，但可以用于测试权威区域中是否存在通配符；这种查询是获
+得所有者名称中带有“*”的 RR 响应的唯一方式。此类查询结果不应被缓存。
+
+
+Note that the contents of the wildcard RRs are not modified when used to synthesize RRs.
+
+请注意，使用通配符 RR 合成新 RR 时，不会修改通配符 RR 本身的内容。
+
+
+To illustrate the use of wildcard RRs, suppose a large company with a large, non-IP/TCP,
+network wanted to create a mail gateway. If the company was called X.COM, and IP/TCP
+capable gateway machine was called A.X.COM, the following RRs might be entered into the
+COM zone:
+
+为说明通配符 RR 的用法，假设一家拥有大型非 IP/TCP 网络的大公司希望建立邮件网关。若公司名
+为 X.COM，能够使用 IP/TCP 的网关主机名为 A.X.COM，则可以在 COM 区域中加入以下 RR：
+
+
+    X.COM           MX      10      A.X.COM
+
+
+    *.X.COM         MX      10      A.X.COM
+
+
+    A.X.COM         A       1.2.3.4
+    A.X.COM         MX      10      A.X.COM
+
+
+    *.A.X.COM       MX      10      A.X.COM
+
+
+This would cause any MX query for any domain name ending in X.COM to return an MX RR
+pointing at A.X.COM. Two wildcard RRs are required since the effect of the wildcard at
+*.X.COM is inhibited in the A.X.COM subtree by the explicit data for A.X.COM. Note also
+that the explicit MX data at X.COM and A.X.COM is required, and that none of the RRs
+above would match a query name of XX.COM.
+
+这样，任何以 X.COM 结尾的域名的 MX 查询都会返回一个指向 A.X.COM 的 MX RR。之所以需要两个
+通配符 RR，是因为 A.X.COM 的显式数据会抑制 *.X.COM 通配符在 A.X.COM 子树中的作用。还应注
+意，X.COM 和 A.X.COM 上都必须具有显式 MX 数据，并且上述任何 RR 都不会匹配查询名称 XX.COM。
+
+
+4.3.4. Negative response caching (Optional)
+
+4.3.4. 否定响应缓存（可选）
+
+
+The DNS provides an optional service which allows name servers to distribute, and
+resolvers to cache, negative results with TTLs. For example, a name server can
+distribute a TTL along with a name error indication, and a resolver receiving such
+information is allowed to assume that the name does not exist during the TTL period
+without consulting authoritative data. Similarly, a resolver can make a query with a
+QTYPE which matches multiple types, and cache the fact that some of the types are not
+present.
+
+DNS 提供一种可选服务，允许名称服务器分发带 TTL 的否定结果，并允许解析器缓存这些结果。例
+如，名称服务器可以把 TTL 与名称错误指示一起分发；接收该信息的解析器可以在 TTL 期间内假定
+名称不存在，而无需查询权威数据。类似地，解析器可以使用匹配多个类型的 QTYPE 发起查询，并
+缓存其中某些类型不存在这一事实。
+
+
+This feature can be particularly important in a system which implements naming
+shorthands that use search lists beacuse a popular shorthand, which happens to require a
+suffix toward the end of the search list, will generate multiple name errors whenever it
+is used.
+
+在实现了使用搜索列表的名称缩写机制的系统中，这一功能可能尤其重要。某个常用缩写如果恰好需
+要搜索列表靠后位置的后缀，那么每次使用它时都会产生多个名称错误。
+
+
+The method is that a name server may add an SOA RR to the additional section of a
+response when that response is authoritative. The SOA must be that of the zone which was
+the source of the authoritative data in the answer section, or name error if applicable.
+The MINIMUM field of the SOA controls the length of time that the negative result may be
+cached.
+
+具体方法是：当响应具有权威性时，名称服务器可以在响应的附加区段加入一个 SOA RR。该 SOA 必
+须属于回答区段中权威数据的来源区域；若响应为名称错误，则属于产生该错误的区域。SOA 的
+MINIMUM 字段控制否定结果可以缓存的时间长度。
+
+
+Note that in some circumstances, the answer section may contain multiple owner names. In
+this case, the SOA mechanism should only be used for the data which matches QNAME, which
+is the only authoritative data in this section.
+
+请注意，在某些情况下，回答区段可能包含多个所有者名称。此时，SOA 机制只能用于匹配 QNAME
+的数据，因为该区段中只有这些数据具有权威性。
+
+
+Name servers and resolvers should never attempt to add SOAs to the additional section of
+a non-authoritative response, or attempt to infer results which are not directly stated
+in an authoritative response. There are several reasons for this, including: cached
+information isn't usually enough to match up RRs and their zone names, SOA RRs may be
+cached due to direct SOA queries, and name servers are not required to output the SOAs
+in the authority section.
+
+名称服务器和解析器绝不应尝试向非权威响应的附加区段加入 SOA，也不应尝试推导权威响应中没有
+直接陈述的结果。原因有若干，包括：缓存信息通常不足以把 RR 与其区域名称对应起来；SOA RR
+可能因直接 SOA 查询而被缓存；而且名称服务器不一定会在权威区段输出 SOA。
+
+
+This feature is optional, although a refined version is expected to become part of the
+standard protocol in the future. Name servers are not required to add the SOA RRs in all
+authoritative responses, nor are resolvers required to cache negative results. Both are
+recommended. All resolvers and recursive name servers are required to at least be able
+to ignore the SOA RR when it is present in a response.
+
+该功能是可选的，尽管预计其改进版本将来会成为标准协议的一部分。名称服务器不必在所有权威响
+应中加入 SOA RR，解析器也不必缓存否定结果，但二者都受到推荐。所有解析器和递归名称服务器
+至少必须能够在响应中出现 SOA RR 时忽略它。
+
+
+Some experiments have also been proposed which will use this feature. The idea is that
+if cached data is known to come from a particular zone, and if an authoritative copy of
+the zone's SOA is obtained, and if the zone's SERIAL has not changed since the data was
+cached, then the TTL of the cached data can be reset to the zone MINIMUM value if it is
+smaller. This usage is mentioned for planning purposes only, and is not recommended as
+yet.
+
+还有一些实验方案提议使用这一功能。其思想是：如果已知缓存数据来自某个特定区域，又取得了该
+区域 SOA 的权威副本，并且自缓存数据以来区域的 SERIAL 没有变化，那么当缓存数据的 TTL 小于
+区域的 MINIMUM 值时，可以把 TTL 重置为该 MINIMUM 值。这里提及这种用法仅供规划考虑，目前
+并不推荐。
+
+
+4.3.5. Zone maintenance and transfers
+
+4.3.5. 区域维护与传送
+
+
+Part of the job of a zone administrator is to maintain the zones at all of the name
+servers which are authoritative for the zone. When the inevitable changes are made, they
+must be distributed to all of the name servers. While this distribution can be
+accomplished using FTP or some other ad hoc procedure, the preferred method is the zone
+transfer part of the DNS protocol.
+
+区域管理员的部分职责，是在所有对该区域具有权威性的名称服务器上维护区域。不可避免地发生变
+更时，必须把变更分发到所有名称服务器。虽然可以使用 FTP 或其他临时方法完成分发，但首选方
+式是使用 DNS 协议的区域传送功能。
+
+
+The general model of automatic zone transfer or refreshing is that one of the name
+servers is the master or primary for the zone. Changes are coordinated at the primary,
+typically by editing a master file for the zone. After editing, the administrator
+signals the master server to load the new zone. The other non-master or secondary
+servers for the zone periodically check for changes (at a selectable interval) and
+obtain new zone copies when changes have been made.
+
+自动区域传送或刷新的总体模型是：某台名称服务器是该区域的主服务器或主节点。变更在主服务器
+上协调，通常通过编辑该区域的主文件完成。编辑之后，管理员通知主服务器加载新区域。该区域的
+其他非主服务器或辅助服务器按可选择的时间间隔周期性检查变更，并在发生变更时取得新的区域副
+本。
+
+
+To detect changes, secondaries just check the SERIAL field of the SOA for the zone. In
+addition to whatever other changes are made, the SERIAL field in the SOA of the zone is
+always advanced whenever any change is made to the zone. The advancing can be a simple
+increment, or could be based on the write date and time of the master file, etc. The
+purpose is to make it possible to determine which of two copies of a zone is more recent
+by comparing serial numbers. Serial number advances and comparisons use sequence space
+arithmetic, so there is a theoretic limit on how fast a zone can be updated, basically
+that old copies must die out before the serial number covers half of its 32 bit range.
+In practice, the only concern is that the compare operation deals properly with
+comparisons around the boundary between the most positive and most negative 32 bit
+numbers.
+
+为检测变更，辅助服务器只需检查区域 SOA 的 SERIAL 字段。区域发生任何变更时，除了执行其他
+修改之外，SOA 中的 SERIAL 字段始终必须递增。递增方式可以是简单加一，也可以依据主文件的写
+入日期和时间等信息。其目的是通过比较序列号，判断两个区域副本中哪一个更新。序列号递增和比
+较使用序列空间算术，因此区域更新速度在理论上存在限制：基本要求是，在序列号跨越其 32 位范
+围的一半之前，旧副本必须全部消失。实践中唯一需要关注的是，比较操作必须正确处理最正和最负
+32 位数边界附近的比较。
+
+
+The periodic polling of the secondary servers is controlled by parameters in the SOA RR
+for the zone, which set the minimum acceptable polling intervals. The parameters are
+called REFRESH, RETRY, and EXPIRE. Whenever a new zone is loaded in a secondary, the
+secondary waits REFRESH seconds before checking with the primary for a new serial. If
+this check cannot be completed, new checks are started every RETRY seconds. The check is
+a simple query to the primary for the SOA RR of the zone. If the serial field in the
+secondary's zone copy is equal to the serial returned by the primary, then no changes
+have occurred, and the REFRESH interval wait is restarted. If the secondary finds it
+impossible to perform a serial check for the EXPIRE interval, it must assume that its
+copy of the zone is obsolete an discard it.
+
+辅助服务器的周期性轮询由区域 SOA RR 中的参数控制，这些参数规定可接受的最小轮询间隔，分别
+称为 REFRESH、RETRY 和 EXPIRE。每当辅助服务器加载一个新区域后，它会等待 REFRESH 秒，再向
+主服务器检查新的序列号。如果无法完成检查，则每隔 RETRY 秒重新发起检查。检查本身只是向主
+服务器查询该区域的 SOA RR。如果辅助服务器区域副本中的序列号与主服务器返回的序列号相等，
+说明没有发生变更，于是重新开始等待 REFRESH 间隔。如果辅助服务器在整个 EXPIRE 时间内都无
+法完成序列号检查，就必须认为其区域副本已经过期并将其丢弃。
+
+
+When the poll shows that the zone has changed, then the secondary server must request a
+zone transfer via an AXFR request for the zone. The AXFR may cause an error, such as
+refused, but normally is answered by a sequence of response messages. The first and last
+messages must contain the data for the top authoritative node of the zone. Intermediate
+messages carry all of the other RRs from the zone, including both authoritative and
+non-authoritative RRs. The stream of messages allows the secondary to construct a copy
+of the zone. Because accuracy is essential, TCP or some other reliable protocol must be
+used for AXFR requests.
+
+当轮询表明区域已发生变化时，辅助服务器必须通过针对该区域的 AXFR 请求发起区域传送。AXFR
+可能收到错误响应，例如被拒绝，但正常情况下会得到一系列响应报文。第一条和最后一条报文必须
+包含区域顶端权威节点的数据；中间报文承载区域中的其他所有 RR，包括权威和非权威 RR。这一报
+文流使辅助服务器能够构造区域副本。由于准确性至关重要，AXFR 请求必须使用 TCP 或其他可靠协
+议。
+
+
+Each secondary server is required to perform the following operations against the master,
+but may also optionally perform these operations against other secondary servers. This
+strategy can improve the transfer process when the primary is unavailable due to host
+downtime or network problems, or when a secondary server has better network access to an
+"intermediate" secondary than to the primary.
+
+每台辅助服务器都必须针对主服务器执行上述操作，也可以选择针对其他辅助服务器执行这些操作。
+当主服务器因主机停机或网络问题而不可用，或者辅助服务器访问某台“中间”辅助服务器的网络条件
+优于访问主服务器时，这一策略能够改善传送过程。
+
+
+5. RESOLVERS
+
+5. 解析器
+
+
+5.1. Introduction
+
+5.1. 引言
+
+
+Resolvers are programs that interface user programs to domain name servers. In the
+simplest case, a resolver receives a request from a user program (e.g., mail programs,
+TELNET, FTP) in the form of a subroutine call, system call etc., and returns the desired
+information in a form compatible with the local host's data formats.
+
+解析器是连接用户程序与域名服务器的程序。在最简单的情况下，解析器以子程序调用、系统调用等
+形式接收用户程序（例如邮件程序、TELNET、FTP）的请求，并以与本地主机数据格式兼容的形式返
+回所需信息。
+
+
+The resolver is located on the same machine as the program that requests the resolver's
+services, but it may need to consult name servers on other hosts. Because a resolver may
+need to consult several name servers, or may have the requested information in a local
+cache, the amount of time that a resolver will take to complete can vary quite a bit,
+from milliseconds to several seconds.
+
+解析器与请求其服务的程序位于同一台机器上，但它可能需要查询其他主机上的名称服务器。由于解
+析器可能需要查询多台名称服务器，也可能已在本地缓存中保存所请求的信息，因此完成解析所需时
+间差异很大，可能从几毫秒到数秒。
+
+
+A very important goal of the resolver is to eliminate network delay and name server load
+from most requests by answering them from its cache of prior results. It follows that
+caches which are shared by multiple processes, users, machines, etc., are more efficient
+than non-shared caches.
+
+解析器的一项重要目标，是利用先前结果的缓存回答大多数请求，从而消除这些请求的网络延迟和名
+称服务器负载。因此，由多个进程、用户、机器等共享的缓存，比不共享的缓存更高效。
+
+
+5.2. Client-resolver interface
+
+5.2. 客户端—解析器接口
+
+
+5.2.1. Typical functions
+
+5.2.1. 典型功能
+
+
+The client interface to the resolver is influenced by the local host's conventions, but
+the typical resolver-client interface has three functions:
+
+解析器的客户端接口受本地主机约定影响，但典型的解析器—客户端接口具有三项功能：
+
+
+1. Host name to host address translation.
+
+1. 把主机名转换为主机地址。
+
+
+This function is often defined to mimic a previous HOSTS.TXT based function. Given a
+character string, the caller wants one or more 32 bit IP addresses. Under the DNS, it
+translates into a request for type A RRs. Since the DNS does not preserve the order of
+RRs, this function may choose to sort the returned addresses or select the "best"
+address if the service returns only one choice to the client. Note that a multiple
+address return is recommended, but a single address may be the only way to emulate prior
+HOSTS.TXT services.
+
+该功能通常被定义为模拟先前基于 HOSTS.TXT 的功能。给定一个字符串，调用者希望获得一个或多
+个 32 位 IP 地址。在 DNS 中，这会转换为对 A 类型 RR 的请求。由于 DNS 不保留 RR 的顺序，
+该功能可以选择对返回地址排序；如果服务只向客户端返回一个选项，也可以选择“最佳”地址。建议
+返回多个地址，但为了模拟旧有 HOSTS.TXT 服务，可能只能返回一个地址。
+
+
+   2. Host address to host name translation
+
+2. 把主机地址转换为主机名。
+
+
+This function will often follow the form of previous functions. Given a 32 bit IP
+address, the caller wants a character string. The octets of the IP address are reversed,
+used as name components, and suffixed with "IN-ADDR.ARPA". A type PTR query is used to
+get the RR with the primary name of the host. For example, a request for the host name
+corresponding to IP address 1.2.3.4 looks for PTR RRs for domain name
+"4.3.2.1.IN-ADDR.ARPA".
+
+该功能通常也沿用旧有函数的形式。给定一个 32 位 IP 地址，调用者希望得到一个字符串。系统把
+IP 地址的各八位组逆序排列，作为名称组成部分，并加上“IN-ADDR.ARPA”后缀，然后使用 PTR 类型
+查询取得包含主机主名称的 RR。例如，要请求 IP 地址 1.2.3.4 对应的主机名，就查找域名
+“4.3.2.1.IN-ADDR.ARPA”的 PTR RR。
+
+
+   3. General lookup function
+
+3. 通用查找功能。
+
+
+This function retrieves arbitrary information from the DNS, and has no counterpart in
+previous systems. The caller supplies a QNAME, QTYPE, and QCLASS, and wants all of the
+matching RRs. This function will often use the DNS format for all RR data instead of the
+local host's, and returns all RR content (e.g., TTL) instead of a processed form with
+local quoting conventions.
+
+该功能从 DNS 检索任意信息，在先前系统中没有对应功能。调用者提供 QNAME、QTYPE 和 QCLASS，
+并希望获得所有匹配的 RR。该功能通常对所有 RR 数据使用 DNS 格式而不是本地主机格式，并返回
+RR 的全部内容（例如 TTL），而不是按照本地引用约定处理后的形式。
+
+
+When the resolver performs the indicated function, it usually has one of the following
+results to pass back to the client:
+
+解析器执行上述功能后，通常会把以下结果之一返回给客户端：
+
+
+   - One or more RRs giving the requested data.
+
+   - 一个或多个包含所请求数据的 RR。
+
+
+In this case the resolver returns the answer in the appropriate format.
+
+在这种情况下，解析器以适当格式返回答案。
+
+
+   - A name error (NE).
+
+   - 名称错误（NE）。
+
+
+This happens when the referenced name does not exist. For example, a user may have
+mistyped a host name.
+
+当所引用的名称不存在时会出现此结果。例如，用户可能把主机名输入错了。
+
+
+   - A data not found error.
+
+   - 未找到数据错误。
+
+
+This happens when the referenced name exists, but data of the appropriate type does not.
+For example, a host address function applied to a mailbox name would return this error
+since the name exists, but no address RR is present.
+
+当所引用名称存在，但不存在适当类型的数据时会出现此结果。例如，把主机地址查询功能用于邮箱
+名称时，就会返回此错误，因为该名称存在，但没有地址 RR。
+
+
+It is important to note that the functions for translating between host names and
+addresses may combine the "name error" and "data not found" error conditions into a
+single type of error return, but the general function should not. One reason for this is
+that applications may ask first for one type of information about a name followed by a
+second request to the same name for some other type of information; if the two errors
+are combined, then useless queries may slow the application.
+
+需要特别注意，把主机名与地址相互转换的函数可以把“名称错误”和“未找到数据”合并为同一种错误
+返回，但通用功能不应这样做。原因之一是，应用可能先请求某个名称的一种信息，随后又请求同一
+名称的另一种信息；如果合并这两种错误，无用查询可能会拖慢应用。
+
+
+5.2.2. Aliases
+
+5.2.2. 别名
+
+
+While attempting to resolve a particular request, the resolver may find that the name in
+question is an alias. For example, the resolver might find that the name given for host
+name to address translation is an alias when it finds the CNAME RR. If possible, the
+alias condition should be signalled back from the resolver to the client.
+
+解析某个请求时，解析器可能发现相关名称是别名。例如，在执行主机名到地址的转换时，解析器可
+能通过 CNAME RR 发现给定名称是别名。在可能的情况下，解析器应把别名状态通知客户端。
+
+
+In most cases a resolver simply restarts the query at the new name when it encounters a
+CNAME. However, when performing the general function, the resolver should not pursue
+aliases when the CNAME RR matches the query type. This allows queries which ask whether
+an alias is present. For example, if the query type is CNAME, the user is interested in
+the CNAME RR itself, and not the RRs at the name it points to.
+
+大多数情况下，解析器遇到 CNAME 时，只需从新名称重新开始查询。不过，在执行通用功能时，如
+果 CNAME RR 与查询类型匹配，解析器不应继续跟随别名。这样就能查询某个别名是否存在。例如，
+若查询类型为 CNAME，用户关心的是 CNAME RR 本身，而不是它所指向名称上的 RR。
+
+
+Several special conditions can occur with aliases. Multiple levels of aliases should be
+avoided due to their lack of efficiency, but should not be signalled as an error. Alias
+loops and aliases which point to non-existent names should be caught and an error
+condition passed back to the client.
+
+别名还可能出现若干特殊情况。多级别名效率低，应当避免，但不应把它报告为错误。应检测别名环
+以及指向不存在名称的别名，并把错误状态返回给客户端。
+
+
+5.2.3. Temporary failures
+
+5.2.3. 临时故障
+
+
+In a less than perfect world, all resolvers will occasionally be unable to resolve a
+particular request. This condition can be caused by a resolver which becomes separated
+from the rest of the network due to a link failure or gateway problem, or less often by
+coincident failure or unavailability of all servers for a particular domain.
+
+在并不完美的现实环境中，所有解析器偶尔都会无法解析某个请求。造成这种情况的原因可能是链路
+故障或网关问题使解析器与网络其余部分隔离；较少见的原因是某个特定域的所有服务器同时发生故
+障或不可用。
+
+
+It is essential that this sort of condition should not be signalled as a name or data
+not present error to applications. This sort of behavior is annoying to humans, and can
+wreak havoc when mail systems use the DNS.
+
+绝不能把这种情况作为“名称不存在”或“数据不存在”错误报告给应用。这样做不仅会令用户困扰，而
+且在邮件系统使用 DNS 时可能造成严重破坏。
+
+
+While in some cases it is possible to deal with such a temporary problem by blocking the
+request indefinitely, this is usually not a good choice, particularly when the client is
+a server process that could move on to other tasks. The recommended solution is to
+always have temporary failure as one of the possible results of a resolver function,
+even though this may make emulation of existing HOSTS.TXT functions more difficult.
+
+某些情况下，可以通过无限期阻塞请求来处理这类临时问题，但这通常不是好选择，尤其当客户端是
+本可继续处理其他任务的服务器进程时。推荐的解决方案是：始终把“临时故障”作为解析器函数的一
+种可能结果，尽管这样可能使模拟现有 HOSTS.TXT 函数变得更加困难。
+
+
+5.3. Resolver internals
+
+5.3. 解析器内部结构
+
+
+Every resolver implementation uses slightly different algorithms, and typically spends
+much more logic dealing with errors of various sorts than typical occurances. This
+section outlines a recommended basic strategy for resolver operation, but leaves details
+to [RFC-1035].
+
+不同解析器实现采用的算法略有差异，而且用于处理各种错误情况的逻辑通常远多于正常情况。本节
+概述推荐的解析器基本运行策略，具体细节留给 [RFC-1035]。
+
+
+5.3.1. Stub resolvers
+
+5.3.1. 桩解析器
+
+
+One option for implementing a resolver is to move the resolution function out of the
+local machine and into a name server which supports recursive queries. This can provide
+an easy method of providing domain service in a PC which lacks the resources to perform
+the resolver function, or can centralize the cache for a whole local network or
+organization.
+
+实现解析器的一种选择，是把解析功能移出本地机器，交给支持递归查询的名称服务器。这样可以很
+容易地为资源不足、无法自行执行解析功能的个人计算机提供域名服务，也可以为整个局域网或组织
+集中维护缓存。
+
+
+All that the remaining stub needs is a list of name server addresses that will perform
+the recursive requests. This type of resolver presumably needs the information in a
+configuration file, since it probably lacks the sophistication to locate it in the
+domain database. The user also needs to verify that the listed servers will perform the
+recursive service; a name server is free to refuse to perform recursive services for any
+or all clients. The user should consult the local system administrator to find name
+servers willing to perform the service.
+
+剩余的桩只需要一份能够执行递归请求的名称服务器地址列表。这种解析器很可能需要从配置文件获
+取信息，因为它或许没有能力在域数据库中自行定位这些服务器。用户还必须确认列表中的服务器确
+实会提供递归服务；名称服务器可以自由拒绝为部分或全部客户端执行递归服务。用户应咨询本地系
+统管理员，找到愿意提供该服务的名称服务器。
+
+
+This type of service suffers from some drawbacks. Since the recursive requests may take
+an arbitrary amount of time to perform, the stub may have difficulty optimizing
+retransmission intervals to deal with both lost UDP packets and dead servers; the name
+server can be easily overloaded by too zealous a stub if it interprets retransmissions
+as new requests. Use of TCP may be an answer, but TCP may well place burdens on the
+host's capabilities which are similar to those of a real resolver.
+
+这类服务存在一些缺点。递归请求的执行时间可能任意长，因此桩解析器可能难以优化重传间隔，既
+要处理 UDP 分组丢失，又要处理服务器失效。如果过于积极的桩解析器把重传当作新请求，名称服
+务器很容易过载。使用 TCP 可能是一种解决办法，但 TCP 对主机能力造成的负担，很可能与真正的
+解析器相近。
+
+
+5.3.2. Resources
+
+5.3.2. 资源
+
+
+In addition to its own resources, the resolver may also have shared access to zones
+maintained by a local name server. This gives the resolver the advantage of more rapid
+access, but the resolver must be careful to never let cached information override zone
+data. In this discussion the term "local information" is meant to mean the union of the
+cache and such shared zones, with the understanding that authoritative data is always
+used in preference to cached data when both are present.
+
+除自身资源外，解析器还可以共享访问本地名称服务器维护的区域。这样能加快访问，但解析器必须
+小心，绝不能让缓存信息覆盖区域数据。这里所说的“本地信息”是缓存与这些共享区域的并集，同时
+应当理解：当权威数据和缓存数据同时存在时，始终优先使用权威数据。
+
+
+The following resolver algorithm assumes that all functions have been converted to a
+general lookup function, and uses the following data structures to represent the state
+of a request in progress in the resolver:
+
+以下解析器算法假定所有功能都已转换为通用查找功能，并使用下列数据结构表示解析器中正在处理
+的请求状态：
+
+
+SNAME the domain name we are searching for.
+
+SNAME：当前正在查找的域名。
+
+
+STYPE the QTYPE of the search request.
+
+STYPE：查找请求的 QTYPE。
+
+
+SCLASS the QCLASS of the search request.
+
+SCLASS：查找请求的 QCLASS。
+
+
+SLIST a structure which describes the name servers and the zone which the resolver is
+currently trying to query. This structure keeps track of the resolver's current best
+guess about which name servers hold the desired information; it is updated when arriving
+information changes the guess. This structure includes the equivalent of a zone name,
+the known name servers for the zone, the known addresses for the name servers, and
+history information which can be used to suggest which server is likely to be the best
+one to try next. The zone name equivalent is a match count of the number of labels from
+the root down which SNAME has in common with the zone being queried; this is used as a
+measure of how "close" the resolver is to SNAME.
+
+SLIST：描述解析器当前试图查询的名称服务器和区域的数据结构。该结构记录解析器目前对哪些名
+称服务器掌握所需信息的最佳猜测；新到达的信息改变这一猜测时，它也随之更新。该结构包括与区
+域名称等价的信息、该区域已知的名称服务器、名称服务器的已知地址，以及可用于判断下一次最值
+得尝试哪台服务器的历史信息。与区域名称等价的信息，是从根向下计算 SNAME 与所查询区域共有
+多少个标签的匹配计数；它用来衡量解析器距离 SNAME 有多“近”。
+
+
+SBELT a "safety belt" structure of the same form as SLIST, which is initialized from a
+configuration file, and lists servers which should be used when the resolver doesn't
+have any local information to guide name server selection. The match count will be -1 to
+indicate that no labels are known to match.
+
+SBELT：一种与 SLIST 形式相同的“安全带”结构，从配置文件初始化；当解析器没有任何本地信息可
+以指导名称服务器选择时，它列出应当使用的服务器。匹配计数为 -1，表示不知道有任何标签相匹
+配。
+
+
+CACHE A structure which stores the results from previous responses. Since resolvers are
+responsible for discarding old RRs whose TTL has expired, most implementations convert
+the interval specified in arriving RRs to some sort of absolute time when the RR is
+stored in the cache. Instead of counting the TTLs down individually, the resolver just
+ignores or discards old RRs when it runs across them in the course of a search, or
+discards them during periodic sweeps to reclaim the memory consumed by old RRs.
+
+CACHE：保存先前响应结果的结构。解析器负责丢弃 TTL 已过期的旧 RR，因此大多数实现会在 RR
+存入缓存时，把到达 RR 中指定的时间间隔转换为某种绝对时间。解析器不必逐个递减 TTL，而是在
+搜索过程中遇到旧 RR 时忽略或丢弃它们，或者在周期性扫描中丢弃它们，以回收旧 RR 占用的内存。
+
+
+5.3.3. Algorithm
+
+5.3.3. 算法
+
+
+The top level algorithm has four steps:
+
+顶层算法分为四步：
+
+
+1. See if the answer is in local information, and if so return it to the client.
+
+1. 检查答案是否已存在于本地信息中；若存在，将其返回给客户端。
+
+
+2. Find the best servers to ask.
+
+2. 找出最适合询问的服务器。
+
+
+3. Send them queries until one returns a response.
+
+3. 向这些服务器发送查询，直到某一台返回响应。
+
+
+   4. Analyze the response, either:
+
+4. 分析响应，可能出现以下情况：
+
+
+   a. if the response answers the question or contains a name error, cache the data as
+      well as returning it back to the client.
+
+   a. 如果响应回答了问题或包含名称错误，则在把数据返回给客户端的同时将其缓存。
+
+
+   b. if the response contains a better delegation to other servers, cache the
+      delegation information, and go to step 2.
+
+   b. 如果响应包含指向其他服务器的更好委派，则缓存委派信息并转到步骤 2。
+
+
+   c. if the response shows a CNAME and that is not the answer itself, cache the CNAME,
+      change the SNAME to the canonical name in the CNAME RR and go to step 1.
+
+   c. 如果响应包含 CNAME，而该 CNAME 本身不是所需答案，则缓存 CNAME，把 SNAME 改为 CNAME
+      RR 中的规范名称，并转到步骤 1。
+
+
+   d. if the response shows a servers failure or other bizarre contents, delete the
+      server from the SLIST and go back to step 3.
+
+   d. 如果响应表明服务器故障或包含其他异常内容，则从 SLIST 中删除该服务器并返回步骤 3。
+
+
+Step 1 searches the cache for the desired data. If the data is in the cache, it is
+assumed to be good enough for normal use. Some resolvers have an option at the user
+interface which will force the resolver to ignore the cached data and consult with an
+authoritative server. This is not recommended as the default. If the resolver has direct
+access to a name server's zones, it should check to see if the desired data is present
+in authoritative form, and if so, use the authoritative data in preference to cached
+data.
+
+步骤 1 在缓存中查找所需数据。如果数据已在缓存中，就假定它足以满足正常使用。某些解析器在
+用户界面提供一个选项，可强制解析器忽略缓存数据并查询权威服务器；不建议把它设为默认行为。
+如果解析器能够直接访问名称服务器的区域，就应检查所需数据是否以权威形式存在；若存在，应优
+先于缓存数据使用权威数据。
+
+
+Step 2 looks for a name server to ask for the required data. The general strategy is to
+look for locally-available name server RRs, starting at SNAME, then the parent domain
+name of SNAME, the grandparent, and so on toward the root. Thus if SNAME were
+Mockapetris.ISI.EDU, this step would look for NS RRs for Mockapetris.ISI.EDU, then
+ISI.EDU, then EDU, and then . (the root). These NS RRs list the names of hosts for a
+zone at or above SNAME. Copy the names into SLIST. Set up their addresses using local
+data. It may be the case that the addresses are not available. The resolver has many
+choices here; the best is to start parallel resolver processes looking for the addresses
+while continuing onward with the addresses which are available. Obviously, the design
+choices and options are complicated and a function of the local host's capabilities. The
+recommended priorities for the resolver designer are:
+
+步骤 2 寻找应当询问的名称服务器。总体策略是从 SNAME 开始查找本地可用的名称服务器 RR，然
+后依次查找 SNAME 的父域、祖父域，并继续向根查找。因此，如果 SNAME 是 Mockapetris.ISI.EDU，
+本步骤会依次查找 Mockapetris.ISI.EDU、ISI.EDU、EDU 和“.”（根）的 NS RR。这些 NS RR 列出
+位于 SNAME 或其祖先位置的区域服务器主机名。把这些名称复制到 SLIST，并使用本地数据设置其
+地址。地址可能并不可用。解析器在这里有许多选择；最佳办法是启动并行解析过程查找这些地址，
+同时继续使用已经可用的地址。显然，具体设计选择和选项十分复杂，并取决于本地主机的能力。对
+解析器设计者而言，推荐的优先级是：
+
+
+   1. Bound the amount of work (packets sent, parallel processes started) so that a
+      request can't get into an infinite loop or start off a chain reaction of requests
+      or queries with other implementations EVEN IF SOMEONE HAS INCORRECTLY CONFIGURED
+      SOME DATA.
+
+1. 限制工作量，包括发送的分组数和启动的并行进程数，使单个请求不会陷入无限循环，也不会与
+其他实现之间引发请求或查询的连锁反应；即使有人错误配置了某些数据也必须如此。
+
+
+2. Get back an answer if at all possible.
+
+2. 只要可能，就返回一个答案。
+
+
+3. Avoid unnecessary transmissions.
+
+3. 避免不必要的传输。
+
+
+4. Get the answer as quickly as possible.
+
+4. 尽快取得答案。
+
+
+If the search for NS RRs fails, then the resolver initializes SLIST from the safety belt
+SBELT. The basic idea is that when the resolver has no idea what servers to ask, it
+should use information from a configuration file that lists several servers which are
+expected to be helpful. Although there are special situations, the usual choice is two
+of the root servers and two of the servers for the host's domain. The reason for two of
+each is for redundancy. The root servers will provide eventual access to all of the
+domain space. The two local servers will allow the resolver to continue to resolve local
+names if the local network becomes isolated from the internet due to gateway or link
+failure.
+
+如果查找 NS RR 失败，解析器就从安全带 SBELT 初始化 SLIST。基本思想是：当解析器完全不知道
+该询问哪些服务器时，应使用配置文件中列出的若干预期有帮助的服务器。虽然存在特殊情况，通常
+会选择两台根服务器和两台本机所属域的服务器。每类选择两台是为了冗余。根服务器最终能够提供
+对整个域空间的访问；如果本地网络因网关或链路故障与 Internet 隔离，两台本地服务器仍可使解
+析器继续解析本地名称。
+
+
+In addition to the names and addresses of the servers, the SLIST data structure can be
+sorted to use the best servers first, and to insure that all addresses of all servers
+are used in a round-robin manner. The sorting can be a simple function of preferring
+addresses on the local network over others, or may involve statistics from past events,
+such as previous response times and batting averages.
+
+除了服务器名称和地址之外，还可以对 SLIST 数据结构排序，以优先使用最佳服务器，并确保以轮
+询方式使用所有服务器的所有地址。排序可以只是优先选择本地网络上的地址，也可以使用过去事件
+的统计信息，例如先前响应时间和成功率。
+
+
+Step 3 sends out queries until a response is received. The strategy is to cycle around
+all of the addresses for all of the servers with a timeout between each transmission. In
+practice it is important to use all addresses of a multihomed host, and too aggressive a
+retransmission policy actually slows response when used by multiple resolvers contending
+for the same name server and even occasionally for a single resolver. SLIST typically
+contains data values to control the timeouts and keep track of previous transmissions.
+
+步骤 3 持续发送查询，直到收到响应。策略是遍历所有服务器的所有地址，每次传输之间设置超时。
+实践中必须使用多宿主主机的全部地址；多个解析器争用同一名称服务器时，过于激进的重传策略反
+而会降低响应速度，偶尔甚至单个解析器也会如此。SLIST 通常包含控制超时并记录先前传输的数据
+值。
+
+
+Step 4 involves analyzing responses. The resolver should be highly paranoid in its
+parsing of responses. It should also check that the response matches the query it sent
+using the ID field in the response.
+
+步骤 4 分析响应。解析器在解析响应时应保持高度警惕，还应使用响应中的 ID 字段检查响应是否
+与自己发送的查询相匹配。
+
+
+The ideal answer is one from a server authoritative for the query which either gives the
+required data or a name error. The data is passed back to the user and entered in the
+cache for future use if its TTL is greater than zero.
+
+理想响应来自对查询具有权威性的服务器，并且给出所需数据或名称错误。如果数据的 TTL 大于零，
+就把它返回给用户并写入缓存，以供以后使用。
+
+
+If the response shows a delegation, the resolver should check to see that the delegation
+is "closer" to the answer than the servers in SLIST are. This can be done by comparing
+the match count in SLIST with that computed from SNAME and the NS RRs in the delegation.
+If not, the reply is bogus and should be ignored. If the delegation is valid the NS
+delegation RRs and any address RRs for the servers should be cached. The name servers
+are entered in the SLIST, and the search is restarted.
+
+如果响应表明存在委派，解析器应检查该委派是否比 SLIST 中的服务器更“接近”答案。可以把
+SLIST 中的匹配计数与根据 SNAME 和委派中的 NS RR 计算出的匹配计数进行比较。如果并未更接近，
+该回复就是伪造或无效的，应当忽略。如果委派有效，则缓存委派 NS RR 以及服务器的所有地址 RR，
+把这些名称服务器写入 SLIST，并重新开始搜索。
+
+
+If the response contains a CNAME, the search is restarted at the CNAME unless the
+response has the data for the canonical name or if the CNAME is the answer itself.
+
+如果响应包含 CNAME，除非响应已经包含规范名称的数据，或者 CNAME 本身就是答案，否则应从
+CNAME 指向的名称重新开始搜索。
+
+
+Details and implementation hints can be found in [RFC-1035].
+
+具体细节和实现提示见 [RFC-1035]。
+
+
+6. A SCENARIO
+
+6. 一个场景
+
+
+In our sample domain space, suppose we wanted separate administrative control for the
+root, MIL, EDU, MIT.EDU and ISI.EDU zones. We might allocate name servers as follows:
+
+在示例域空间中，假设我们希望分别管理根区域、MIL、EDU、MIT.EDU 和 ISI.EDU 区域。名称服务
+器可以按如下方式分配：
+
+
+                                   |(C.ISI.EDU,SRI-NIC.ARPA
+                                   | A.ISI.EDU)
+             +---------------------+------------------+
+             |                     |                  |
+            MIL                   EDU                ARPA
+             |(SRI-NIC.ARPA,       |(SRI-NIC.ARPA,    |
+             | A.ISI.EDU           | C.ISI.EDU)       |
+       +-----+-----+               |     +------+-----+-----+
+       |     |     |               |     |      |           |
+      BRL  NOSC  DARPA             |  IN-ADDR  SRI-NIC     ACC
+                                   |
+       +--------+------------------+---------------+--------+
+       |        |                  |               |        |
+      UCI      MIT                 |              UDEL     YALE
+                |(XX.LCS.MIT.EDU, ISI
+                |ACHILLES.MIT.EDU) |(VAXA.ISI.EDU,VENERA.ISI.EDU,
+            +---+---+              | A.ISI.EDU)
+            |       |              |
+           LCS   ACHILLES +--+-----+-----+--------+
+            |             |  |     |     |        |
+            XX            A  C   VAXA  VENERA Mockapetris
+
+
+In this example, the authoritative name server is shown in parentheses at the point in
+the domain tree at which is assumes control.
+
+在此示例中，权威名称服务器写在括号内，标注在它开始接管控制权的域树位置。
+
+
+Thus the root name servers are on C.ISI.EDU, SRI-NIC.ARPA, and A.ISI.EDU. The MIL domain
+is served by SRI-NIC.ARPA and A.ISI.EDU. The EDU domain is served by SRI-NIC.ARPA. and
+C.ISI.EDU. Note that servers may have zones which are contiguous or disjoint. In this
+scenario, C.ISI.EDU has contiguous zones at the root and EDU domains. A.ISI.EDU has
+contiguous zones at the root and MIL domains, but also has a non-contiguous zone at
+ISI.EDU.
+
+因此，根名称服务器位于 C.ISI.EDU、SRI-NIC.ARPA 和 A.ISI.EDU。MIL 域由 SRI-NIC.ARPA 和
+A.ISI.EDU 提供服务；EDU 域由 SRI-NIC.ARPA 和 C.ISI.EDU 提供服务。请注意，一台服务器负责
+的多个区域可以彼此连续，也可以彼此分离。在此场景中，C.ISI.EDU 在根域和 EDU 域拥有两个连
+续区域；A.ISI.EDU 在根域和 MIL 域拥有两个连续区域，同时还在 ISI.EDU 拥有一个不连续区域。
+
+
+6.1. C.ISI.EDU name server
+
+6.1. C.ISI.EDU 名称服务器
+
+
+C.ISI.EDU is a name server for the root, MIL, and EDU domains of the IN class, and would
+have zones for these domains. The zone data for the root domain might be:
+
+C.ISI.EDU 是 IN 类中根域、MIL 域和 EDU 域的名称服务器，因此会拥有这些域的区域。根域的区
+域数据可能如下：
+
+
+    .       IN      SOA     SRI-NIC.ARPA. HOSTMASTER.SRI-NIC.ARPA. (
+                            870611          ;serial
+                            1800            ;refresh every 30 min
+                            300             ;retry every 5 min
+                            604800          ;expire after a week
+                            86400)          ;minimum of a day
+                    NS      A.ISI.EDU.
+                    NS      C.ISI.EDU.
+                    NS      SRI-NIC.ARPA.
+
+
+    MIL.    86400   NS      SRI-NIC.ARPA.
+            86400   NS      A.ISI.EDU.
+
+
+    EDU.    86400   NS      SRI-NIC.ARPA.
+            86400   NS      C.ISI.EDU.
+
+
+    SRI-NIC.ARPA.   A       26.0.0.73
+                    A       10.0.0.51
+                    MX      0 SRI-NIC.ARPA.
+                    HINFO   DEC-2060 TOPS20
+
+
+    ACC.ARPA.       A       26.6.0.65
+                    HINFO   PDP-11/70 UNIX
+                    MX      10 ACC.ARPA.
+
+
+    USC-ISIC.ARPA.  CNAME   C.ISI.EDU.
+
+
+    73.0.0.26.IN-ADDR.ARPA.  PTR    SRI-NIC.ARPA.
+    65.0.6.26.IN-ADDR.ARPA.  PTR    ACC.ARPA.
+    51.0.0.10.IN-ADDR.ARPA.  PTR    SRI-NIC.ARPA.
+    52.0.0.10.IN-ADDR.ARPA.  PTR    C.ISI.EDU.
+    103.0.3.26.IN-ADDR.ARPA. PTR    A.ISI.EDU.
+
+
+    A.ISI.EDU. 86400 A      26.3.0.103
+    C.ISI.EDU. 86400 A      10.0.0.52
+
+
+This data is represented as it would be in a master file. Most RRs are single line
+entries; the sole exception here is the SOA RR, which uses "(" to start a multi-line RR
+and ")" to show the end of a multi-line RR. Since the class of all RRs in a zone must be
+the same, only the first RR in a zone need specify the class. When a name server loads a
+zone, it forces the TTL of all authoritative RRs to be at least the MINIMUM field of the
+SOA, here 86400 seconds, or one day. The NS RRs marking delegation of the MIL and EDU
+domains, together with the glue RRs for the servers host addresses, are not part of the
+authoritative data in the zone, and hence have explicit TTLs.
+
+这些数据采用主文件中的表示方式。大多数 RR 都是单行项；这里唯一的例外是 SOA RR，它用“(”开
+始一个多行 RR，并用“)”表示多行 RR 结束。由于一个区域中所有 RR 的类必须相同，因此区域中只
+有第一个 RR 需要指定类。名称服务器加载区域时，会强制所有权威 RR 的 TTL 至少等于 SOA 的
+MINIMUM 字段；此处为 86400 秒，即一天。标记 MIL 和 EDU 域委派的 NS RR，以及用于服务器主
+机地址的胶水 RR，不属于该区域中的权威数据，因此显式给出了 TTL。
+
+
+Four RRs are attached to the root node: the SOA which describes the root zone and the 3
+NS RRs which list the name servers for the root. The data in the SOA RR describes the
+management of the zone. The zone data is maintained on host SRI-NIC.ARPA, and the
+responsible party for the zone is HOSTMASTER@SRI-NIC.ARPA. A key item in the SOA is the
+86400 second minimum TTL, which means that all authoritative data in the zone has at
+least that TTL, although higher values may be explicitly specified.
+
+根节点上附着四个 RR：一个描述根区域的 SOA，以及三个列出根名称服务器的 NS RR。SOA RR 中的
+数据描述区域管理方式。区域数据维护在主机 SRI-NIC.ARPA 上，区域负责人是
+HOSTMASTER@SRI-NIC.ARPA。SOA 中一个关键项目是 86400 秒的最小 TTL，它表示区域中所有权威数
+据的 TTL 至少为该值，不过也可以显式指定更高值。
+
+
+The NS RRs for the MIL and EDU domains mark the boundary between the root zone and the
+MIL and EDU zones. Note that in this example, the lower zones happen to be supported by
+name servers which also support the root zone.
+
+MIL 域和 EDU 域的 NS RR 标记根区域与 MIL、EDU 区域之间的边界。请注意，在此示例中，下层区
+域恰好由同时支持根区域的名称服务器提供服务。
+
+
+The master file for the EDU zone might be stated relative to the origin EDU. The zone
+data for the EDU domain might be:
+
+EDU 区域的主文件可以相对于起点 EDU 来书写。EDU 域的区域数据可能如下：
+
+
+    EDU.  IN SOA SRI-NIC.ARPA. HOSTMASTER.SRI-NIC.ARPA. (
+                            870729 ;serial
+                            1800 ;refresh every 30 minutes
+                            300 ;retry every 5 minutes
+                            604800 ;expire after a week
+                            86400 ;minimum of a day
+                            )
+                    NS SRI-NIC.ARPA.
+                    NS C.ISI.EDU.
+
+
+    UCI 172800 NS ICS.UCI
+                    172800 NS ROME.UCI
+    ICS.UCI 172800 A 192.5.19.1
+    ROME.UCI 172800 A 192.5.19.31
+    ISI 172800 NS VAXA.ISI
+                    172800 NS A.ISI
+                    172800 NS VENERA.ISI.EDU.
+    VAXA.ISI 172800 A 10.2.0.27
+                    172800 A 128.9.0.33
+    VENERA.ISI.EDU. 172800 A 10.1.0.52
+                    172800 A 128.9.0.32
+    A.ISI 172800 A 26.3.0.103
+
+
+    UDEL.EDU.  172800 NS LOUIE.UDEL.EDU.
+                    172800 NS UMN-REI-UC.ARPA.
+    LOUIE.UDEL.EDU. 172800 A 10.0.0.96
+                    172800 A 192.5.39.3
+
+
+    YALE.EDU.  172800 NS YALE.ARPA.
+    YALE.EDU.  172800 NS YALE-BULLDOG.ARPA.
+
+
+    MIT.EDU.  43200 NS XX.LCS.MIT.EDU.
+                      43200 NS ACHILLES.MIT.EDU.
+    XX.LCS.MIT.EDU.  43200 A 10.0.0.44
+    ACHILLES.MIT.EDU. 43200 A 18.72.0.8
+
+
+Note the use of relative names here. The owner name for the ISI.EDU. is stated using a
+relative name, as are two of the name server RR contents. Relative and absolute domain
+names may be freely intermixed in a master
+
+请注意这里对相对名称的使用。ISI.EDU. 的所有者名称使用相对名称表示，两个名称服务器 RR 的
+内容也是如此。相对域名和绝对域名可以在一个主文件中自由混用——[上传原文在此处中断]。
+
+
+6.2. Example standard queries
+
+6.2. 标准查询示例
+
+
+The following queries and responses illustrate name server behavior. Unless otherwise
+noted, the queries do not have recursion desired (RD) in the header. Note that the
+answers to non-recursive queries do depend on the server being asked, but do not depend
+on the identity of the requester.
+
+以下查询和响应说明名称服务器的行为。除非另有说明，查询首部中都没有设置“期望递归”（RD）。
+请注意，非递归查询的答案取决于被询问的是哪台服务器，但不取决于请求者的身份。
+
+
+6.2.1. QNAME=SRI-NIC.ARPA, QTYPE=A
+
+6.2.1. QNAME=SRI-NIC.ARPA，QTYPE=A
+
+
+The query would look like:
+
+查询报文如下：
+
+
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY                                     |
+               +---------------------------------------------------+
+    Question   | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=A           |
+               +---------------------------------------------------+
+    Answer     | <empty>                                           |
+               +---------------------------------------------------+
+    Authority  | <empty>                                           |
+               +---------------------------------------------------+
+    Additional | <empty>                                           |
+               +---------------------------------------------------+
+
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY                                     |
+               +---------------------------------------------------+
+    问题       | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=A           |
+               +---------------------------------------------------+
+    回答       | <空>                                              |
+               +---------------------------------------------------+
+    权威       | <空>                                              |
+               +---------------------------------------------------+
+    附加       | <空>                                              |
+               +---------------------------------------------------+
+
+
+The response from C.ISI.EDU would be:
+
+C.ISI.EDU 返回的响应如下：
+
+
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    Question   | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=A           |
+               +---------------------------------------------------+
+    Answer     | SRI-NIC.ARPA. 86400 IN A 26.0.0.73                |
+               |               86400 IN A 10.0.0.51                |
+               +---------------------------------------------------+
+    Authority  | <empty>                                           |
+               +---------------------------------------------------+
+    Additional | <empty>                                           |
+               +---------------------------------------------------+
+
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    问题       | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=A           |
+               +---------------------------------------------------+
+    回答       | SRI-NIC.ARPA. 86400 IN A 26.0.0.73                |
+               |               86400 IN A 10.0.0.51                |
+               +---------------------------------------------------+
+    权威       | <空>                                              |
+               +---------------------------------------------------+
+    附加       | <空>                                              |
+               +---------------------------------------------------+
+
+
+The header of the response looks like the header of the query, except that the RESPONSE
+bit is set, indicating that this message is a response, not a query, and the
+Authoritative Answer (AA) bit is set indicating that the address RRs in the answer
+section are from authoritative data. The question section of the response matches the
+question section of the query.
+
+响应首部与查询首部相似，但 RESPONSE 比特被置位，表示该报文是响应而不是查询；“权威回答”
+（AA）比特也被置位，表示回答区段中的地址 RR 来自权威数据。响应的问题区段与查询的问题区段
+相同。
+
+
+If the same query was sent to some other server which was not authoritative for
+SRI-NIC.ARPA, the response might be:
+
+如果把同一查询发送给另一台对 SRI-NIC.ARPA 不具有权威性的服务器，响应可能如下：
+
+
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY,RESPONSE                            |
+               +---------------------------------------------------+
+    Question   | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=A           |
+               +---------------------------------------------------+
+    Answer     | SRI-NIC.ARPA. 1777 IN A 10.0.0.51                 |
+               |               1777 IN A 26.0.0.73                 |
+               +---------------------------------------------------+
+    Authority  | <empty>                                           |
+               +---------------------------------------------------+
+    Additional | <empty>                                           |
+               +---------------------------------------------------+
+
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY,RESPONSE                            |
+               +---------------------------------------------------+
+    问题       | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=A           |
+               +---------------------------------------------------+
+    回答       | SRI-NIC.ARPA. 1777 IN A 10.0.0.51                 |
+               |               1777 IN A 26.0.0.73                 |
+               +---------------------------------------------------+
+    权威       | <空>                                              |
+               +---------------------------------------------------+
+    附加       | <空>                                              |
+               +---------------------------------------------------+
+
+
+This response is different from the previous one in two ways: the header does not have
+AA set, and the TTLs are different. The inference is that the data did not come from a
+zone, but from a cache. The difference between the authoritative TTL and the TTL here is
+due to aging of the data in a cache. The difference in ordering of the RRs in the answer
+section is not significant.
+
+该响应与前一个响应有两点不同：首部没有设置 AA，并且 TTL 不同。由此可推断，数据不是来自区
+域，而是来自缓存。这里的 TTL 与权威 TTL 之所以不同，是因为缓存中的数据已经老化。回答区段
+中 RR 顺序不同没有任何意义。
+
+
+6.2.2. QNAME=SRI-NIC.ARPA, QTYPE=*
+
+6.2.2. QNAME=SRI-NIC.ARPA，QTYPE=*
+
+
+A query similar to the previous one, but using a QTYPE of *, would receive the following
+response from C.ISI.EDU:
+
+与前一个查询类似、但 QTYPE 使用 * 的查询，会从 C.ISI.EDU 收到以下响应：
+
+
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    Question   | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=*           |
+               +---------------------------------------------------+
+    Answer     | SRI-NIC.ARPA. 86400 IN  A     26.0.0.73           |
+               |                         A     10.0.0.51           |
+               |                         MX    0 SRI-NIC.ARPA.     |
+               |                         HINFO DEC-2060 TOPS20     |
+               +---------------------------------------------------+
+    Authority  | <empty>                                           |
+               +---------------------------------------------------+
+    Additional | <empty>                                           |
+               +---------------------------------------------------+
+
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    问题       | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=*           |
+               +---------------------------------------------------+
+    回答       | SRI-NIC.ARPA. 86400 IN  A     26.0.0.73           |
+               |                         A     10.0.0.51           |
+               |                         MX    0 SRI-NIC.ARPA.     |
+               |                         HINFO DEC-2060 TOPS20     |
+               +---------------------------------------------------+
+    权威       | <空>                                              |
+               +---------------------------------------------------+
+    附加       | <空>                                              |
+               +---------------------------------------------------+
+
+
+If a similar query was directed to two name servers which are not authoritative for
+SRI-NIC.ARPA, the responses might be:
+
+如果把类似查询发送给两台对 SRI-NIC.ARPA 不具有权威性的名称服务器，响应可能分别是：
+
+
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY, RESPONSE                           |
+               +---------------------------------------------------+
+    Question   | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=*           |
+               +---------------------------------------------------+
+    Answer     | SRI-NIC.ARPA. 12345 IN     A       26.0.0.73      |
+               |                            A       10.0.0.51      |
+               +---------------------------------------------------+
+    Authority  | <empty>                                           |
+               +---------------------------------------------------+
+    Additional | <empty>                                           |
+               +---------------------------------------------------+
+
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY, RESPONSE                           |
+               +---------------------------------------------------+
+    问题       | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=*           |
+               +---------------------------------------------------+
+    回答       | SRI-NIC.ARPA. 12345 IN     A       26.0.0.73      |
+               |                            A       10.0.0.51      |
+               +---------------------------------------------------+
+    权威       | <空>                                              |
+               +---------------------------------------------------+
+    附加       | <空>                                              |
+               +---------------------------------------------------+
+
+
+and
+
+以及
+
+
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY, RESPONSE                           |
+               +---------------------------------------------------+
+    Question   | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=*           |
+               +---------------------------------------------------+
+    Answer     | SRI-NIC.ARPA. 1290 IN HINFO  DEC-2060 TOPS20      |
+               +---------------------------------------------------+
+    Authority  | <empty>                                           |
+               +---------------------------------------------------+
+    Additional | <empty>                                           |
+               +---------------------------------------------------+
+
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY, RESPONSE                           |
+               +---------------------------------------------------+
+    问题       | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=*           |
+               +---------------------------------------------------+
+    回答       | SRI-NIC.ARPA. 1290 IN HINFO  DEC-2060 TOPS20      |
+               +---------------------------------------------------+
+    权威       | <空>                                              |
+               +---------------------------------------------------+
+    附加       | <空>                                              |
+               +---------------------------------------------------+
+
+
+Neither of these answers have AA set, so neither response comes from authoritative data.
+The different contents and different TTLs suggest that the two servers cached data at
+different times, and that the first server cached the response to a QTYPE=A query and
+the second cached the response to a HINFO query.
+
+这两个回答都没有设置 AA，因此都不来自权威数据。内容和 TTL 的差异表明，两台服务器在不同时
+间缓存了数据；第一台服务器缓存了 QTYPE=A 查询的响应，第二台服务器缓存了 HINFO 查询的响应。
+
+
+6.2.3. QNAME=SRI-NIC.ARPA, QTYPE=MX
+
+6.2.3. QNAME=SRI-NIC.ARPA，QTYPE=MX
+
+
+This type of query might be result from a mailer trying to look up routing information
+for the mail destination HOSTMASTER@SRI-NIC.ARPA. The response from C.ISI.EDU would be:
+
+当邮件程序试图查找邮件目的地 HOSTMASTER@SRI-NIC.ARPA 的路由信息时，可能产生这类查询。
+C.ISI.EDU 的响应如下：
+
+
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    Question   | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=MX          |
+               +---------------------------------------------------+
+    Answer     | SRI-NIC.ARPA. 86400 IN     MX      0 SRI-NIC.ARPA.|
+               +---------------------------------------------------+
+    Authority  | <empty>                                           |
+               +---------------------------------------------------+
+    Additional | SRI-NIC.ARPA. 86400 IN     A       26.0.0.73      |
+               |                            A       10.0.0.51      |
+               +---------------------------------------------------+
+
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    问题       | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=MX          |
+               +---------------------------------------------------+
+    回答       | SRI-NIC.ARPA. 86400 IN     MX      0 SRI-NIC.ARPA.|
+               +---------------------------------------------------+
+    权威       | <空>                                              |
+               +---------------------------------------------------+
+    附加       | SRI-NIC.ARPA. 86400 IN     A       26.0.0.73      |
+               |                            A       10.0.0.51      |
+               +---------------------------------------------------+
+
+
+This response contains the MX RR in the answer section of the response. The additional
+section contains the address RRs because the name server at C.ISI.EDU guesses that the
+requester will need the addresses in order to properly use the information carried by
+the MX.
+
+该响应的回答区段包含 MX RR。附加区段包含地址 RR，因为 C.ISI.EDU 上的名称服务器推测，请求
+者为了正确使用 MX 所承载的信息，很快就会需要这些地址。
+
+
+6.2.4. QNAME=SRI-NIC.ARPA, QTYPE=NS
+
+6.2.4. QNAME=SRI-NIC.ARPA，QTYPE=NS
+
+
+C.ISI.EDU would reply to this query with:
+
+C.ISI.EDU 对该查询的回复如下：
+
+
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    Question   | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=NS          |
+               +---------------------------------------------------+
+    Answer     | <empty>                                           |
+               +---------------------------------------------------+
+    Authority  | <empty>                                           |
+               +---------------------------------------------------+
+    Additional | <empty>                                           |
+               +---------------------------------------------------+
+
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    问题       | QNAME=SRI-NIC.ARPA., QCLASS=IN, QTYPE=NS          |
+               +---------------------------------------------------+
+    回答       | <空>                                              |
+               +---------------------------------------------------+
+    权威       | <空>                                              |
+               +---------------------------------------------------+
+    附加       | <空>                                              |
+               +---------------------------------------------------+
+
+
+The only difference between the response and the query is the AA and RESPONSE bits in
+the header. The interpretation of this response is that the server is authoritative for
+the name, and the name exists, but no RRs of type NS are present there.
+
+响应与查询之间唯一的差别，是首部中的 AA 和 RESPONSE 比特。该响应表示：服务器对这个名称具
+有权威性，而且该名称存在，但该位置没有 NS 类型的 RR。
+
+
+6.2.5. QNAME=SIR-NIC.ARPA, QTYPE=A
+
+6.2.5. QNAME=SIR-NIC.ARPA，QTYPE=A
+
+
+If a user mistyped a host name, we might see this type of query.
+
+如果用户误写了主机名，可能会看到这种查询。
+
+
+C.ISI.EDU would answer it with:
+
+C.ISI.EDU 会作出如下回答：
+
+
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY, RESPONSE, AA, RCODE=NE             |
+               +---------------------------------------------------+
+    Question   | QNAME=SIR-NIC.ARPA., QCLASS=IN, QTYPE=A           |
+               +---------------------------------------------------+
+    Answer     | <empty>                                           |
+               +---------------------------------------------------+
+    Authority  | . SOA SRI-NIC.ARPA. HOSTMASTER.SRI-NIC.ARPA.      |
+               |       870611 1800 300 604800 86400                |
+               +---------------------------------------------------+
+    Additional | <empty>                                           |
+               +---------------------------------------------------+
+
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY, RESPONSE, AA, RCODE=NE             |
+               +---------------------------------------------------+
+    问题       | QNAME=SIR-NIC.ARPA., QCLASS=IN, QTYPE=A           |
+               +---------------------------------------------------+
+    回答       | <空>                                              |
+               +---------------------------------------------------+
+    权威       | . SOA SRI-NIC.ARPA. HOSTMASTER.SRI-NIC.ARPA.      |
+               |       870611 1800 300 604800 86400                |
+               +---------------------------------------------------+
+    附加       | <空>                                              |
+               +---------------------------------------------------+
+
+
+This response states that the name does not exist. This condition is signalled in the
+response code (RCODE) section of the header.
+
+该响应说明名称不存在。这一状态通过首部的响应码（RCODE）字段表示。
+
+
+The SOA RR in the authority section is the optional negative caching information which
+allows the resolver using this response to assume that the name will not exist for the
+SOA MINIMUM (86400) seconds.
+
+权威区段中的 SOA RR 是可选的否定缓存信息；使用该响应的解析器可以据此假定，在 SOA 的
+MINIMUM 时间，即 86400 秒内，该名称仍然不存在。
+
+
+6.2.6. QNAME=BRL.MIL, QTYPE=A
+
+6.2.6. QNAME=BRL.MIL，QTYPE=A
+
+
+If this query is sent to C.ISI.EDU, the reply would be:
+
+如果把该查询发送给 C.ISI.EDU，回复如下：
+
+
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY, RESPONSE                           |
+               +---------------------------------------------------+
+    Question   | QNAME=BRL.MIL, QCLASS=IN, QTYPE=A                 |
+               +---------------------------------------------------+
+    Answer     | <empty>                                           |
+               +---------------------------------------------------+
+    Authority  | MIL.             86400 IN NS       SRI-NIC.ARPA.  |
+               |                  86400    NS       A.ISI.EDU.     |
+               +---------------------------------------------------+
+    Additional | A.ISI.EDU.                A        26.3.0.103     |
+               | SRI-NIC.ARPA.             A        26.0.0.73      |
+               |                           A        10.0.0.51      |
+               +---------------------------------------------------+
+
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY, RESPONSE                           |
+               +---------------------------------------------------+
+    问题       | QNAME=BRL.MIL, QCLASS=IN, QTYPE=A                 |
+               +---------------------------------------------------+
+    回答       | <空>                                              |
+               +---------------------------------------------------+
+    权威       | MIL.             86400 IN NS       SRI-NIC.ARPA.  |
+               |                  86400    NS       A.ISI.EDU.     |
+               +---------------------------------------------------+
+    附加       | A.ISI.EDU.                A        26.3.0.103     |
+               | SRI-NIC.ARPA.             A        26.0.0.73      |
+               |                           A        10.0.0.51      |
+               +---------------------------------------------------+
+
+
+This response has an empty answer section, but is not authoritative, so it is a
+referral. The name server on C.ISI.EDU, realizing that it is not authoritative for the
+MIL domain, has referred the requester to servers on A.ISI.EDU and SRI-NIC.ARPA, which
+it knows are authoritative for the MIL domain.
+
+该响应的回答区段为空，但它不具有权威性，因此这是一个转介。C.ISI.EDU 上的名称服务器意识到
+自己对 MIL 域不具有权威性，于是把请求者转介到 A.ISI.EDU 和 SRI-NIC.ARPA 上的服务器；它知
+道这两台服务器对 MIL 域具有权威性。
+
+
+6.2.7. QNAME=USC-ISIC.ARPA, QTYPE=A
+
+6.2.7. QNAME=USC-ISIC.ARPA，QTYPE=A
+
+
+The response to this query from A.ISI.EDU would be:
+
+A.ISI.EDU 对该查询的响应如下：
+
+
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    Question   | QNAME=USC-ISIC.ARPA., QCLASS=IN, QTYPE=A          |
+               +---------------------------------------------------+
+    Answer     | USC-ISIC.ARPA. 86400 IN CNAME      C.ISI.EDU.     |
+               | C.ISI.EDU.     86400 IN A          10.0.0.52      |
+               +---------------------------------------------------+
+    Authority  | <empty>                                           |
+               +---------------------------------------------------+
+    Additional | <empty>                                           |
+               +---------------------------------------------------+
+
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    问题       | QNAME=USC-ISIC.ARPA., QCLASS=IN, QTYPE=A          |
+               +---------------------------------------------------+
+    回答       | USC-ISIC.ARPA. 86400 IN CNAME      C.ISI.EDU.     |
+               | C.ISI.EDU.     86400 IN A          10.0.0.52      |
+               +---------------------------------------------------+
+    权威       | <空>                                              |
+               +---------------------------------------------------+
+    附加       | <空>                                              |
+               +---------------------------------------------------+
+
+
+Note that the AA bit in the header guarantees that the data matching QNAME is
+authoritative, but does not say anything about whether the data for C.ISI.EDU is
+authoritative. This complete reply is possible because A.ISI.EDU happens to be
+authoritative for both the ARPA domain where USC-ISIC.ARPA is found and the ISI.EDU
+domain where C.ISI.EDU data is found.
+
+请注意，首部中的 AA 比特保证与 QNAME 匹配的数据具有权威性，但并不说明 C.ISI.EDU 的数据是
+否具有权威性。之所以能够得到这个完整回复，是因为 A.ISI.EDU 恰好同时对 USC-ISIC.ARPA 所在
+的 ARPA 域和 C.ISI.EDU 数据所在的 ISI.EDU 域具有权威性。
+
+
+If the same query was sent to C.ISI.EDU, its response might be the same as shown above
+if it had its own address in its cache, but might also be:
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    Question   | QNAME=USC-ISIC.ARPA., QCLASS=IN, QTYPE=A          |
+               +---------------------------------------------------+
+    Answer     | USC-ISIC.ARPA.   86400 IN CNAME   C.ISI.EDU.      |
+               +---------------------------------------------------+
+    Authority  | ISI.EDU.        172800 IN NS      VAXA.ISI.EDU.   |
+               |                           NS      A.ISI.EDU.      |
+               |                           NS      VENERA.ISI.EDU. |
+               +---------------------------------------------------+
+    Additional | VAXA.ISI.EDU.   172800    A       10.2.0.27       |
+               |                 172800    A       128.9.0.33      |
+               | VENERA.ISI.EDU. 172800    A       10.1.0.52       |
+               |                 172800    A       128.9.0.32      |
+               | A.ISI.EDU.      172800    A       26.3.0.103      |
+               +---------------------------------------------------+
+
+如果把同一查询发送给 C.ISI.EDU，并且其缓存中已有自己的地址，那么响应可能与上面相同；否则
+也可能如下：
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    问题       | QNAME=USC-ISIC.ARPA., QCLASS=IN, QTYPE=A          |
+               +---------------------------------------------------+
+    回答       | USC-ISIC.ARPA.   86400 IN CNAME   C.ISI.EDU.      |
+               +---------------------------------------------------+
+    权威       | ISI.EDU.        172800 IN NS      VAXA.ISI.EDU.   |
+               |                           NS      A.ISI.EDU.      |
+               |                           NS      VENERA.ISI.EDU. |
+               +---------------------------------------------------+
+    附加       | VAXA.ISI.EDU.   172800    A       10.2.0.27       |
+               |                 172800    A       128.9.0.33      |
+               | VENERA.ISI.EDU. 172800    A       10.1.0.52       |
+               |                 172800    A       128.9.0.32      |
+               | A.ISI.EDU.      172800    A       26.3.0.103      |
+               +---------------------------------------------------+
+
+
+This reply contains an authoritative reply for the alias USC-ISIC.ARPA, plus a referral
+to the name servers for ISI.EDU. This sort of reply isn't very likely given that the
+query is for the host name of the name server being asked, but would be common for other
+aliases.
+
+该回复既包含别名 USC-ISIC.ARPA 的权威回答，又包含指向 ISI.EDU 名称服务器的转介。由于查询
+的正是被询问名称服务器自身的主机名，这种回复并不常见；但对于其他别名则很常见。
+
+
+6.2.8. QNAME=USC-ISIC.ARPA, QTYPE=CNAME
+
+6.2.8. QNAME=USC-ISIC.ARPA，QTYPE=CNAME
+
+
+If this query is sent to either A.ISI.EDU or C.ISI.EDU, the reply would be:
+
+如果把该查询发送给 A.ISI.EDU 或 C.ISI.EDU，回复都会如下：
+
+
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    Question   | QNAME=USC-ISIC.ARPA., QCLASS=IN, QTYPE=A          |
+               +---------------------------------------------------+
+    Answer     | USC-ISIC.ARPA. 86400 IN CNAME      C.ISI.EDU.     |
+               +---------------------------------------------------+
+    Authority  | <empty>                                           |
+               +---------------------------------------------------+
+    Additional | <empty>                                           |
+               +---------------------------------------------------+
+
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    问题       | QNAME=USC-ISIC.ARPA., QCLASS=IN, QTYPE=A          |
+               +---------------------------------------------------+
+    回答       | USC-ISIC.ARPA. 86400 IN CNAME      C.ISI.EDU.     |
+               +---------------------------------------------------+
+    权威       | <空>                                              |
+               +---------------------------------------------------+
+    附加       | <空>                                              |
+               +---------------------------------------------------+
+
+
+Because QTYPE=CNAME, the CNAME RR itself answers the query, and the name server doesn't
+attempt to look up anything for C.ISI.EDU. (Except possibly for the additional section.)
+
+由于 QTYPE=CNAME，CNAME RR 本身就回答了查询，名称服务器不会继续查找 C.ISI.EDU 的任何信息，
+附加区段可能进行的处理除外。
+
+
+6.3. Example resolution
+
+6.3. 解析示例
+
+
+The following examples illustrate the operations a resolver must perform for its client.
+We assume that the resolver is starting without a cache, as might be the case after
+system boot. We further assume that the system is not one of the hosts in the data and
+that the host is located somewhere on net 26, and that its safety belt (SBELT) data
+structure has the following information:
+
+以下示例说明解析器必须为客户端执行的操作。假设解析器启动时没有缓存，例如系统刚启动后的情
+况。还假设该系统不是数据中列出的任何一台主机，该主机位于网络 26 的某个位置，并且其安全带
+（SBELT）数据结构包含以下信息：
+
+
+    Match count = -1
+    SRI-NIC.ARPA.   26.0.0.73       10.0.0.51
+    A.ISI.EDU.      26.3.0.103
+
+    匹配计数 = -1
+    SRI-NIC.ARPA.   26.0.0.73       10.0.0.51
+    A.ISI.EDU.      26.3.0.103
+
+
+This information specifies servers to try, their addresses, and a match count of -1,
+which says that the servers aren't very close to the target. Note that the -1 isn't
+supposed to be an accurate closeness measure, just a value so that later stages of the
+algorithm will work.
+
+这些信息指定了要尝试的服务器及其地址，并给出匹配计数 -1，表示这些服务器与目标并不接近。
+这里的 -1 并不是准确的接近程度度量，只是为了让算法后续阶段能够正常工作而使用的一个值。
+
+
+The following examples illustrate the use of a cache, so each example assumes that
+previous requests have completed.
+
+以下示例还说明缓存的使用，因此每个示例都假定先前请求已经完成。
+
+
+6.3.1. Resolve MX for ISI.EDU.
+
+6.3.1. 解析 ISI.EDU 的 MX
+
+
+Suppose the first request to the resolver comes from the local mailer, which has mail
+for PVM@ISI.EDU. The mailer might then ask for type MX RRs for the domain name ISI.EDU.
+
+假设解析器收到的第一个请求来自本地邮件程序，该程序有一封要发给 PVM@ISI.EDU 的邮件。邮件
+程序可能会请求域名 ISI.EDU 的 MX 类型 RR。
+
+
+The resolver would look in its cache for MX RRs at ISI.EDU, but the empty cache wouldn't
+be helpful. The resolver would recognize that it needed to query foreign servers and try
+to determine the best servers to query. This search would look for NS RRs for the
+domains ISI.EDU, EDU, and the root. These searches of the cache would also fail. As a
+last resort, the resolver would use the information from the SBELT, copying it into its
+SLIST structure.
+
+解析器会在缓存中查找 ISI.EDU 上的 MX RR，但空缓存无法提供帮助。解析器会判断自己需要查询
+外部服务器，并尝试确定最适合查询的服务器。该搜索会查找 ISI.EDU、EDU 和根域的 NS RR；这些
+缓存查找也会失败。作为最后手段，解析器使用 SBELT 中的信息，并把它复制到 SLIST 结构。
+
+
+At this point the resolver would need to pick one of the three available addresses to
+try. Given that the resolver is on net 26, it should choose either 26.0.0.73 or
+26.3.0.103 as its first choice. It would then send off a query of the form:
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY                                     |
+               +---------------------------------------------------+
+    Question   | QNAME=ISI.EDU., QCLASS=IN, QTYPE=MX               |
+               +---------------------------------------------------+
+    Answer     | <empty>                                           |
+               +---------------------------------------------------+
+    Authority  | <empty>                                           |
+               +---------------------------------------------------+
+    Additional | <empty>                                           |
+               +---------------------------------------------------+
+
+此时，解析器需要从三个可用地址中选择一个进行尝试。由于解析器位于网络 26，它应首先选择
+26.0.0.73 或 26.3.0.103，然后发送如下查询：
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY                                     |
+               +---------------------------------------------------+
+    问题       | QNAME=ISI.EDU., QCLASS=IN, QTYPE=MX               |
+               +---------------------------------------------------+
+    回答       | <空>                                              |
+               +---------------------------------------------------+
+    权威       | <空>                                              |
+               +---------------------------------------------------+
+    附加       | <空>                                              |
+               +---------------------------------------------------+
+
+
+The resolver would then wait for a response to its query or a timeout. If the timeout
+occurs, it would try different servers, then different addresses of the same servers,
+lastly retrying addresses already tried. It might eventually receive a reply from
+SRI-NIC.ARPA:
+
+随后，解析器会等待查询响应或超时。如果发生超时，它会尝试不同服务器，再尝试同一服务器的不
+同地址，最后重试已经尝试过的地址。它最终可能从 SRI-NIC.ARPA 收到如下回复：
+
+
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY, RESPONSE                           |
+               +---------------------------------------------------+
+    Question   | QNAME=ISI.EDU., QCLASS=IN, QTYPE=MX               |
+               +---------------------------------------------------+
+    Answer     | <empty>                                           |
+               +---------------------------------------------------+
+    Authority  | ISI.EDU.        172800 IN NS       VAXA.ISI.EDU.  |
+               |                           NS       A.ISI.EDU.     |
+               |                           NS       VENERA.ISI.EDU.|
+               +---------------------------------------------------+
+    Additional | VAXA.ISI.EDU.   172800    A        10.2.0.27      |
+               |                 172800    A        128.9.0.33     |
+               | VENERA.ISI.EDU. 172800    A        10.1.0.52      |
+               |                 172800    A        128.9.0.32     |
+               | A.ISI.EDU.      172800    A        26.3.0.103     |
+               +---------------------------------------------------+
+
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY, RESPONSE                           |
+               +---------------------------------------------------+
+    问题       | QNAME=ISI.EDU., QCLASS=IN, QTYPE=MX               |
+               +---------------------------------------------------+
+    回答       | <空>                                              |
+               +---------------------------------------------------+
+    权威       | ISI.EDU.        172800 IN NS       VAXA.ISI.EDU.  |
+               |                           NS       A.ISI.EDU.     |
+               |                           NS       VENERA.ISI.EDU.|
+               +---------------------------------------------------+
+    附加       | VAXA.ISI.EDU.   172800    A        10.2.0.27      |
+               |                 172800    A        128.9.0.33     |
+               | VENERA.ISI.EDU. 172800    A        10.1.0.52      |
+               |                 172800    A        128.9.0.32     |
+               | A.ISI.EDU.      172800    A        26.3.0.103     |
+               +---------------------------------------------------+
+
+
+The resolver would notice that the information in the response gave a closer delegation
+to ISI.EDU than its existing SLIST (since it matches three labels). The resolver would
+then cache the information in this response and use it to set up a new SLIST:
+
+解析器会发现，响应中的信息给出了比当前 SLIST 更接近 ISI.EDU 的委派，因为它匹配三个标签。
+解析器随后缓存该响应中的信息，并用它建立新的 SLIST：
+
+
+    Match count = 3
+    A.ISI.EDU.      26.3.0.103
+    VAXA.ISI.EDU.   10.2.0.27       128.9.0.33
+    VENERA.ISI.EDU. 10.1.0.52       128.9.0.32
+
+    匹配计数 = 3
+    A.ISI.EDU.      26.3.0.103
+    VAXA.ISI.EDU.   10.2.0.27       128.9.0.33
+    VENERA.ISI.EDU. 10.1.0.52       128.9.0.32
+
+
+A.ISI.EDU appears on this list as well as the previous one, but that is purely
+coincidental. The resolver would again start transmitting and waiting for responses.
+Eventually it would get an answer:
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    Question   | QNAME=ISI.EDU., QCLASS=IN, QTYPE=MX               |
+               +---------------------------------------------------+
+    Answer     | ISI.EDU.                MX 10 VENERA.ISI.EDU.     |
+               |                         MX 20 VAXA.ISI.EDU.       |
+               +---------------------------------------------------+
+    Authority  | <empty>                                           |
+               +---------------------------------------------------+
+    Additional | VAXA.ISI.EDU.   172800  A  10.2.0.27              |
+               |                 172800  A  128.9.0.33             |
+               | VENERA.ISI.EDU. 172800  A  10.1.0.52              |
+               |                 172800  A  128.9.0.32             |
+               +---------------------------------------------------+
+
+A.ISI.EDU 同时出现在这份列表和上一份列表中，这纯属巧合。解析器会再次开始发送查询并等待响
+应，最终得到如下答案：
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    问题       | QNAME=ISI.EDU., QCLASS=IN, QTYPE=MX               |
+               +---------------------------------------------------+
+    回答       | ISI.EDU.                MX 10 VENERA.ISI.EDU.     |
+               |                         MX 20 VAXA.ISI.EDU.       |
+               +---------------------------------------------------+
+    权威       | <空>                                              |
+               +---------------------------------------------------+
+    附加       | VAXA.ISI.EDU.   172800  A  10.2.0.27              |
+               |                 172800  A  128.9.0.33             |
+               | VENERA.ISI.EDU. 172800  A  10.1.0.52              |
+               |                 172800  A  128.9.0.32             |
+               +---------------------------------------------------+
+
+
+The resolver would add this information to its cache, and return the MX RRs to its
+client.
+
+解析器会把这些信息加入缓存，并把 MX RR 返回给客户端。
+
+
+6.3.2. Get the host name for address 26.6.0.65
+
+6.3.2. 获取地址 26.6.0.65 的主机名
+
+
+The resolver would translate this into a request for PTR RRs for 65.0.6.26.IN-ADDR.ARPA.
+This information is not in the cache, so the resolver would look for foreign servers to
+ask. No servers would match, so it would use SBELT again. (Note that the servers for the
+ISI.EDU domain are in the cache, but ISI.EDU is not an ancestor of
+65.0.6.26.IN-ADDR.ARPA, so the SBELT is used.)
+
+解析器会把该请求转换为对 65.0.6.26.IN-ADDR.ARPA 的 PTR RR 请求。缓存中没有这些信息，因此
+解析器会寻找可询问的外部服务器。没有服务器与该名称匹配，所以它再次使用 SBELT。请注意，
+ISI.EDU 域的服务器虽然已在缓存中，但 ISI.EDU 不是 65.0.6.26.IN-ADDR.ARPA 的祖先，因此仍
+使用 SBELT。
+
+
+Since this request is within the authoritative data of both servers in SBELT, eventually
+one would return:
+               +---------------------------------------------------+
+    Header     | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    Question   | QNAME=65.0.6.26.IN-ADDR.ARPA.,QCLASS=IN,QTYPE=PTR |
+               +---------------------------------------------------+
+    Answer     | 65.0.6.26.IN-ADDR.ARPA.    PTR     ACC.ARPA.      |
+               +---------------------------------------------------+
+    Authority  | <empty>                                           |
+               +---------------------------------------------------+
+    Additional | <empty>                                           |
+               +---------------------------------------------------+
+
+由于该请求属于 SBELT 中两台服务器的权威数据范围，最终其中一台会返回：
+               +---------------------------------------------------+
+    首部       | OPCODE=SQUERY, RESPONSE, AA                       |
+               +---------------------------------------------------+
+    问题       | QNAME=65.0.6.26.IN-ADDR.ARPA.,QCLASS=IN,QTYPE=PTR |
+               +---------------------------------------------------+
+    回答       | 65.0.6.26.IN-ADDR.ARPA.    PTR     ACC.ARPA.      |
+               +---------------------------------------------------+
+    权威       | <空>                                              |
+               +---------------------------------------------------+
+    附加       | <空>                                              |
+               +---------------------------------------------------+
+
+
+6.3.3. Get the host address of poneria.ISI.EDU
+
+6.3.3. 获取 poneria.ISI.EDU 的主机地址
+
+
+This request would translate into a type A request for poneria.ISI.EDU. The resolver
+would not find any cached data for this name, but would find the NS RRs in the cache for
+ISI.EDU when it looks for foreign servers to ask. Using this data, it would construct a
+SLIST of the form:
+
+该请求会转换为对 poneria.ISI.EDU 的 A 类型请求。解析器在缓存中找不到该名称的数据，但在寻
+找可询问的外部服务器时，会找到缓存中的 ISI.EDU NS RR。使用这些数据，它会构造如下 SLIST：
+
+
+Match count = 3
+
+匹配计数 = 3
+
+
+    A.ISI.EDU.      26.3.0.103
+    VAXA.ISI.EDU.   10.2.0.27       128.9.0.33
+    VENERA.ISI.EDU. 10.1.0.52
+
+
+A.ISI.EDU is listed first on the assumption that the resolver orders its choices by
+preference, and A.ISI.EDU is on the same network.
+
+这里把 A.ISI.EDU 列在第一位，是因为假定解析器会按偏好顺序排列选项，而 A.ISI.EDU 与解析器
+位于同一网络。
+
+
+One of these servers would answer the query.
+
+其中一台服务器会回答该查询。
+
+
+   7. REFERENCES and BIBLIOGRAPHY
+
+7. 参考文献与书目
+
+
+[Dyer 87] Dyer, S., and F. Hsu, "Hesiod", Project Athena Technical Plan - Name Service,
+April 1987, version 1.9.
+
+[Dyer 87] Dyer, S. 和 F. Hsu，《Hesiod》，Athena 项目技术计划——名称服务，1987 年 4 月，
+1.9 版。
+
+
+Describes the fundamentals of the Hesiod name service.
+
+介绍 Hesiod 名称服务的基本原理。
+
+
+[IEN-116] J. Postel, "Internet Name Server", IEN-116, USC/Information Sciences Institute,
+August 1979.
+
+[IEN-116] J. Postel，《Internet 名称服务器》，IEN-116，南加州大学信息科学研究所，1979 年
+8 月。
+
+
+A name service obsoleted by the Domain Name System, but still in use.
+
+一种已被域名系统取代、但当时仍在使用的名称服务。
+
+
+[Quarterman 86] Quarterman, J., and J. Hoskins, "Notable Computer Networks",
+Communications of the ACM, October 1986, volume 29, number 10.
+
+[Quarterman 86] Quarterman, J. 和 J. Hoskins，《值得注意的计算机网络》，《ACM 通讯》，
+1986 年 10 月，第 29 卷第 10 期。
+
+
+[RFC-742] K. Harrenstien, "NAME/FINGER", RFC-742, Network Information Center, SRI
+International, December 1977.
+
+[RFC-742] K. Harrenstien，《NAME/FINGER》，RFC-742，SRI International 网络信息中心，1977
+年 12 月。
+
+
+[RFC-768] J. Postel, "User Datagram Protocol", RFC-768, USC/Information Sciences
+Institute, August 1980.
+
+[RFC-768] J. Postel，《用户数据报协议》，RFC-768，南加州大学信息科学研究所，1980 年 8 月。
+
+
+[RFC-793] J. Postel, "Transmission Control Protocol", RFC-793, USC/Information Sciences
+Institute, September 1981.
+
+[RFC-793] J. Postel，《传输控制协议》，RFC-793，南加州大学信息科学研究所，1981 年 9 月。
+
+
+[RFC-799] D. Mills, "Internet Name Domains", RFC-799, COMSAT, September 1981.
+
+[RFC-799] D. Mills，《Internet 名称域》，RFC-799，COMSAT，1981 年 9 月。
+
+
+Suggests introduction of a hierarchy in place of a flat name space for the Internet.
+
+建议在 Internet 中引入层次结构，以取代扁平名称空间。
+
+
+[RFC-805] J. Postel, "Computer Mail Meeting Notes", RFC-805, USC/Information Sciences
+Institute, February 1982.
+
+[RFC-805] J. Postel，《计算机邮件会议记录》，RFC-805，南加州大学信息科学研究所，1982 年
+2 月。
+
+
+[RFC-810] E. Feinler, K. Harrenstien, Z. Su, and V. White, "DOD Internet Host Table
+Specification", RFC-810, Network Information Center, SRI International, March 1982.
+
+[RFC-810] E. Feinler、K. Harrenstien、Z. Su 和 V. White，《DOD Internet 主机表规范》，
+RFC-810，SRI International 网络信息中心，1982 年 3 月。
+
+
+Obsolete. See RFC-952.
+
+已废弃。见 RFC-952。
+
+
+[RFC-811] K. Harrenstien, V. White, and E. Feinler, "Hostnames Server", RFC-811, Network
+Information Center, SRI International, March 1982.
+
+[RFC-811] K. Harrenstien、V. White 和 E. Feinler，《主机名服务器》，RFC-811，SRI
+International 网络信息中心，1982 年 3 月。
+
+
+Obsolete. See RFC-953.
+
+已废弃。见 RFC-953。
+
+
+[RFC-812] K. Harrenstien, and V. White, "NICNAME/WHOIS", RFC-812, Network Information
+Center, SRI International, March 1982.
+
+[RFC-812] K. Harrenstien 和 V. White，《NICNAME/WHOIS》，RFC-812，SRI International 网络
+信息中心，1982 年 3 月。
+
+
+[RFC-819] Z. Su, and J. Postel, "The Domain Naming Convention for Internet User
+Applications", RFC-819, Network Information Center, SRI International, August 1982.
+
+[RFC-819] Z. Su 和 J. Postel，《Internet 用户应用的域命名约定》，RFC-819，SRI
+International 网络信息中心，1982 年 8 月。
+
+
+Early thoughts on the design of the domain system. Current implementation is completely
+different.
+
+关于域名系统设计的早期构想。当前实现已经完全不同。
+
+
+[RFC-821] J. Postel, "Simple Mail Transfer Protocol", RFC-821, USC/Information Sciences
+Institute, August 1980.
+
+[RFC-821] J. Postel，《简单邮件传输协议》，RFC-821，南加州大学信息科学研究所，1980 年 8
+月。
+
+
+[RFC-830] Z. Su, "A Distributed System for Internet Name Service", RFC-830, Network
+Information Center, SRI International, October 1982.
+
+[RFC-830] Z. Su，《用于 Internet 名称服务的分布式系统》，RFC-830，SRI International 网络
+信息中心，1982 年 10 月。
+
+
+Early thoughts on the design of the domain system. Current implementation is completely
+different.
+
+关于域名系统设计的早期构想。当前实现已经完全不同。
+
+
+[RFC-882] P. Mockapetris, "Domain names - Concepts and Facilities," RFC-882,
+USC/Information Sciences Institute, November 1983.
+
+[RFC-882] P. Mockapetris，《域名——概念与设施》，RFC-882，南加州大学信息科学研究所，1983
+年 11 月。
+
+
+Superceeded by this memo.
+
+已被本备忘录取代。
+
+
+[RFC-883] P. Mockapetris, "Domain names - Implementation and Specification," RFC-883,
+USC/Information Sciences Institute, November 1983.
+
+[RFC-883] P. Mockapetris，《域名——实现与规范》，RFC-883，南加州大学信息科学研究所，1983
+年 11 月。
+
+
+Superceeded by this memo.
+
+已被本备忘录取代。
+
+
+[RFC-920] J. Postel and J. Reynolds, "Domain Requirements", RFC-920, USC/Information
+Sciences Institute October 1984.
+
+[RFC-920] J. Postel 和 J. Reynolds，《域要求》，RFC-920，南加州大学信息科学研究所，1984
+年 10 月。
+
+
+Explains the naming scheme for top level domains.
+
+说明顶级域的命名方案。
+
+
+[RFC-952] K. Harrenstien, M. Stahl, E. Feinler, "DoD Internet Host Table Specification",
+RFC-952, SRI, October 1985.
+
+[RFC-952] K. Harrenstien、M. Stahl、E. Feinler，《DoD Internet 主机表规范》，RFC-952，
+SRI，1985 年 10 月。
+
+
+Specifies the format of HOSTS.TXT, the host/address table replaced by the DNS.
+
+规定 HOSTS.TXT 的格式；该主机／地址表后来被 DNS 取代。
+
+
+[RFC-953] K. Harrenstien, M. Stahl, E. Feinler, "HOSTNAME Server", RFC-953, SRI, October
+1985.
+
+[RFC-953] K. Harrenstien、M. Stahl、E. Feinler，《HOSTNAME 服务器》，RFC-953，SRI，1985
+年 10 月。
+
+
+This RFC contains the official specification of the hostname server protocol, which is
+obsoleted by the DNS. This TCP based protocol accesses information stored in the RFC-952
+format, and is used to obtain copies of the host table.
+
+该 RFC 包含主机名服务器协议的正式规范，而该协议已被 DNS 取代。这个基于 TCP 的协议访问以
+RFC-952 格式存储的信息，用于取得主机表副本。
+
+
+[RFC-973] P. Mockapetris, "Domain System Changes and Observations", RFC-973,
+USC/Information Sciences Institute, January 1986.
+
+[RFC-973] P. Mockapetris，《域名系统的变更与观察》，RFC-973，南加州大学信息科学研究所，
+1986 年 1 月。
+
+
+Describes changes to RFC-882 and RFC-883 and reasons for them. Now obsolete.
+
+说明对 RFC-882 和 RFC-883 所作的变更及其原因。现已废弃。
+
+
+[RFC-974] C. Partridge, "Mail routing and the domain system", RFC-974, CSNET CIC BBN
+Labs, January 1986.
+
+[RFC-974] C. Partridge，《邮件路由与域名系统》，RFC-974，CSNET CIC BBN Labs，1986 年 1
+月。
+
+
+Describes the transition from HOSTS.TXT based mail addressing to the more powerful MX
+system used with the domain system.
+
+说明从基于 HOSTS.TXT 的邮件寻址方式，迁移到域名系统所使用的、更强大的 MX 系统。
+
+
+[RFC-1001] NetBIOS Working Group, "Protocol standard for a NetBIOS service on a TCP/UDP
+transport: Concepts and Methods", RFC-1001, March 1987.
+
+[RFC-1001] NetBIOS 工作组，《基于 TCP/UDP 传输的 NetBIOS 服务协议标准：概念与方法》，
+RFC-1001，1987 年 3 月。
+
+
+This RFC and RFC-1002 are a preliminary design for NETBIOS on top of TCP/IP which
+proposes to base NetBIOS name service on top of the DNS.
+
+该 RFC 与 RFC-1002 是在 TCP/IP 之上实现 NETBIOS 的初步设计，并提议把 NetBIOS 名称服务建
+立在 DNS 之上。
+
+
+[RFC-1002] NetBIOS Working Group, "Protocol standard for a NetBIOS service on a TCP/UDP
+transport: Detailed Specifications", RFC-1002, March 1987.
+
+[RFC-1002] NetBIOS 工作组，《基于 TCP/UDP 传输的 NetBIOS 服务协议标准：详细规范》，
+RFC-1002，1987 年 3 月。
+
+
+[RFC-1010] J. Reynolds and J. Postel, "Assigned Numbers", RFC-1010, USC/Information
+Sciences Institute, May 1987
+
+[RFC-1010] J. Reynolds 和 J. Postel，《已分配号码》，RFC-1010，南加州大学信息科学研究所，
+1987 年 5 月。
+
+
+Contains socket numbers and mnemonics for host names, operating systems, etc.
+
+包含套接字号以及主机名、操作系统等所使用的助记符。
+
+
+[RFC-1031] W. Lazear, "MILNET Name Domain Transition", RFC-1031, November 1987.
+
+[RFC-1031] W. Lazear，《MILNET 名称域迁移》，RFC-1031，1987 年 11 月。
+
+
+Describes a plan for converting the MILNET to the DNS.
+
+说明把 MILNET 迁移到 DNS 的计划。
+
+
+[RFC-1032] M. K. Stahl, "Establishing a Domain - Guidelines for Administrators",
+RFC-1032, November 1987.
+
+[RFC-1032] M. K. Stahl，《建立域——管理员准则》，RFC-1032，1987 年 11 月。
+
+
+Describes the registration policies used by the NIC to administer the top level domains
+and delegate subzones.
+
+说明 NIC 用于管理顶级域和委派子区域的注册策略。
+
+
+[RFC-1033] M. K. Lottor, "Domain Administrators Operations Guide", RFC-1033, November
+1987.
+
+[RFC-1033] M. K. Lottor，《域管理员操作指南》，RFC-1033，1987 年 11 月。
+
+
+A cookbook for domain administrators.
+
+面向域管理员的操作手册。
+
+
+[Solomon 82] M. Solomon, L. Landweber, and D. Neuhengen, "The CSNET Name Server",
+Computer Networks, vol 6, nr 3, July 1982.
+
+[Solomon 82] M. Solomon、L. Landweber 和 D. Neuhengen，《CSNET 名称服务器》，《Computer
+Networks》，第 6 卷第 3 期，1982 年 7 月。
+
+
+Describes a name service for CSNET which is independent from the DNS and DNS use in the
+CSNET.
+
+说明一种独立于 DNS 的 CSNET 名称服务，以及 DNS 在 CSNET 中的使用。
+
+
+Index
+
+索引
+
+
+          A   12
+          Absolute names   8
+          Aliases   14, 31
+          Authority   6
+          AXFR   17
+
+          A   12
+          绝对名称   8
+          别名   14, 31
+          权威   6
+          AXFR   17
+
+
+          Case of characters   7
+          CH   12
+          CNAME   12, 13, 31
+          Completion queries   18
+
+          字符大小写   7
+          CH   12
+          CNAME   12, 13, 31
+          补全查询   18
+
+
+          Domain name   6, 7
+
+          域名   6, 7
+
+
+          Glue RRs   20
+
+          胶水 RR   20
+
+
+          HINFO   12
+
+          HINFO   12
+
+
+          IN   12
+          Inverse queries   16
+          Iterative   4
+
+          IN   12
+          反向查询   16
+          迭代   4
+
+
+          Label   7
+
+          标签   7
+
+
+          Mailbox names   9
+          MX   12
+
+          邮箱名称   9
+          MX   12
+
+
+          Name error   27, 36
+          Name servers   5, 17
+          NE   30
+          Negative caching   44
+          NS   12
+
+          名称错误   27, 36
+          名称服务器   5, 17
+          NE   30
+          否定缓存   44
+          NS   12
+
+
+          Opcode   16
+
+          操作码   16
+
+
+          PTR   12
+
+          PTR   12
+
+
+          QCLASS   16
+          QTYPE   16
+
+          QCLASS   16
+          QTYPE   16
+
+
+          RDATA   13
+          Recursive   4
+          Recursive service   22
+          Relative names   7
+          Resolvers   6
+          RR   12
+          Safety belt   33
+          Sections   16
+          SOA   12
+          Standard queries   22
+
+          RDATA   13
+          递归   4
+          递归服务   22
+          相对名称   7
+          解析器   6
+          RR   12
+          安全带   33
+          区段   16
+          SOA   12
+          标准查询   22
+
+
+          Status queries   18
+          Stub resolvers   32
+
+          状态查询   18
+          桩解析器   32
+
+
+          TTL   12, 13
+
+          TTL   12, 13
+
+
+          Wildcards   25
+
+          通配符   25
+
+
+          Zone transfers   28
+          Zones   19
+
+          区域传送   28
+          区域   19
