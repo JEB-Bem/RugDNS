@@ -1,0 +1,17 @@
+# Acquire dnscript public resolver list from network.
+# If all URLs are unreachable, use the offline `resolvers.md` file
+[sources]
+minisign_key = "RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3"
+public_resolvers = [
+    "https://download.dnscrypt.info/dnscrypt-resolvers/v3/public-resolvers.md",
+    "https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/refs/heads/master/v3/public-resolvers.md",
+    "https://cdn.jsdelivr.net/gh/DNSCrypt/dnscrypt-resolvers@master/v3/public-resolvers.md",
+]
+
+# Uncomment following lines to define your custom dns servers
+# [sources.servers]
+
+# alidns = [
+#     "sdns://AgAAAAAAAAAACTIyMy41LjUuNSCY49XlNq8pWM0vfxT3BO9KJ20l4zzWXy5l9eTycnwTMAkyMjMuNS41LjUKL2Rucy1xdWVyeQ",
+#     "sdns://AgAAAAAAAAAACTIyMy42LjYuNiCY49XlNq8pWM0vfxT3BO9KJ20l4zzWXy5l9eTycnwTMAkyMjMuNi42LjYKL2Rucy1xdWVyeQ"
+# ]

@@ -1,6 +1,7 @@
 mod rug_dns_handler;
 mod rug_dns_resolver;
-mod rug_dns_stamp;
+mod dnstamp;
+mod config;
 
 use hickory_server::{Server};
 use tokio::net::UdpSocket;
@@ -21,6 +22,8 @@ fn init_tracing() {
 async fn main() {
     init_tracing();
     info!("Running RugDns Server v{} (hickory server {})", env!("CARGO_PKG_VERSION"), hickory_server::version());
+
+    let config = config::init_config(None).await;
 
     let handler = RugDnsHandler::new(8);
     let mut server  = Server::new(handler);

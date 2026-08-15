@@ -7,9 +7,14 @@ edition = "2024"
 hickory-server = { version = "0.26.1", features = ["dnssec-aws-lc-rs", "resolver"] }
 hickory-resolver = { version = "0.26.1", features = ["https-aws-lc-rs"] }
 async-trait = { version = "0.1" }
-tokio = { version = "1.21", features = ["net"] }
+tokio = { version = "1.21", features = ["net", "fs"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 base64 = "0.22"
 regex = "1"
 data-encoding = "2"
+toml = "0.8"
+minisign-verify = "0.2"
+reqwest = "0.12"
+anyhow = "1.0"
+serde = "1.0"
