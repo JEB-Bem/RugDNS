@@ -1,11 +1,8 @@
-use toml::Table;
 use minisign_verify::{PublicKey, Signature};
-use std::path::Path;
 use anyhow::Result;
 use std::{fs, collections::HashMap};
 use tracing::{info, debug, warn};
 use serde::{Deserialize, Serialize};
-use crate::dnstamp::{self, DnsResolver, DoHResolver, DNScryptResolver};
 use tokio::task::JoinSet;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -148,8 +145,8 @@ mod tests {
         crate::init_tracing();
         let mut config = init_config(None).await;
         config.sources.servers = Some(HashMap::new());
-        let servers = config.sources.servers.as_mut().unwrap();
-        let alidns = dnstamp::parse_stamp("sdns://AgAAAAAAAAAACTIyMy41LjUuNSCY49XlNq8pWM0vfxT3BO9KJ20l4zzWXy5l9eTycnwTMAkyMjMuNS41LjUKL2Rucy1xdWVyeQA").unwrap();
+        // let servers = config.sources.servers.as_mut().unwrap();
+        // let alidns = dnstamp::parse_stamp("sdns://AgAAAAAAAAAACTIyMy41LjUuNSCY49XlNq8pWM0vfxT3BO9KJ20l4zzWXy5l9eTycnwTMAkyMjMuNS41LjUKL2Rucy1xdWVyeQA").unwrap();
     }
 
 }

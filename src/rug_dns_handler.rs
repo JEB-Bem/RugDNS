@@ -1,13 +1,15 @@
 use hickory_server::server::{Request, RequestHandler, ResponseHandler, ResponseInfo};
 use hickory_server::net::runtime::Time;
+use crate::config::Config;
+use tracing::{info, debug, warn, error};
+use data_encoding::HEXLOWER;
 
 pub struct RugDnsHandler {
-    bar: u8,
 }
 
 impl RugDnsHandler {
-    pub fn new(bar: u8) -> Self {
-        RugDnsHandler { bar }
+    pub fn new(config: &Config) -> Self {
+        RugDnsHandler {  }
     }
 }
 
@@ -18,6 +20,7 @@ impl RequestHandler for RugDnsHandler {
         request: &Request,
         response_handle: R,
     ) -> ResponseInfo {
+        debug!("Received request: {:?}", HEXLOWER.encode(request.as_slice()));
         unimplemented!();
     }
 }
