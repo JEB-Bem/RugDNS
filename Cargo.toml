@@ -2,6 +2,7 @@
 name = "rugdns"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 hickory-server = { version = "0.26.1", features = ["dnssec-aws-lc-rs", "resolver"] }
