@@ -3,9 +3,10 @@ mod rug_dns_resolver;
 mod dnstamp;
 mod config;
 
-use hickory_server::{Server};
+use hickory_server::ServerFuture;
 use tokio::net::UdpSocket;
 use rug_dns_handler::RugDnsHandler;
+use rug_dns_resolver::RugDnsResolver;
 use tracing::{info};
 use tracing_subscriber::EnvFilter;
 
@@ -37,6 +38,5 @@ async fn main() {
     let mut server  = ServerFuture::new(handler);
 
     server.register_socket(socket);
-
     server.block_until_done().await.expect("running error");
 }
