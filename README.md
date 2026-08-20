@@ -16,6 +16,65 @@
 
 TODO: hickory-resolver 是否会自动识别 env proxy 用于 DoH？
 
+## DNS Header Flags and EDNS Header Flags
+
+**Reference**: [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035/#autoid-41), [iana-DNS-Params](https://www.iana.org/assignments/dns-parameters)
+
+```text
+                                 1  1  1  1  1  1
+      0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |                      ID                       |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    |QR|   Opcode  |AA|TC|RD|RA|   Z    |   RCODE   |
+    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+```
+
+- `QR`: `0`: 这是一条 *Query*；`1`: 这是一条 *Response*.
+- `OPCODE`: 操作码
+
+    | OpCode | Name                    |
+    |--------|-------------------------|
+    | 0      | Query                   |
+    | 1      | Inverse Query           |
+    | 2      | Status                  |
+    | 3      | Unassigned              |
+    | 4      | Notify                  |
+    | 5      | Update                  |
+    | 6      | Dns Stateful Operations |
+    | 7-15   | Unassigned              |
+
+- `AA`: Authoritative Answer，权威回答
+  - Query: 没有有效语义，通常应为 0.
+  - Response: `1` 表示响应服务器对于 Question 对应的名字是权威服务器. 不太严谨的解释就是回答是由权威服务器直接返回的.
+- `TC`: Truncated Response，被截断的响应
+  - Query: 正常查询通常为 0.
+  - Response: `1` 表示由于传输大小限制，必须返回的数据没能完整装入响应。客户端通常应换更合适的传输方式重新查询，例如 TCP。
+- `RD`：Recursion Desired，需要进行递归解析
+  - Query: `1` 表示“希望服务器替我递归解析”；`0` 表示不要求递归.
+  - Response: 服务端会把 Query 中的 `RD` **原样复制**回来，**不代表**真的进行了递归查询
+- `RA`：Recursion Available，可以进行递归解析
+  - Query: 没有请求语义，一般为 `0`.
+  - Response: `1` 表示响应方提供递归解析**能力**；`0` 表示不提供.
+- `AD`: Authentic Data，已验证的数据
+  - Query: 无意义，一般为 `0`.
+  - Response: `0` 表示响应方认为相关 Answer，以及相关 negative-answer Authority 数据已经通过 DNSSEC authentication.
+- `CD`: Checking Disabled，请求 resolver 禁用 DNSSEC checking
+  - Query: `1` 表示客户端要求 validating resolver 不要因为 DNSSEC validation failure 而阻止数据返回；客户端可能打算自己验证。`0` 表示正常让 resolver 执行 DNSSEC validation。
+  - Response: 把 Query 中的 `CD` bit 复制到 Response.
+- `DO` (EDNS): DNSSEC answer OK
+  - Query: `1` 表示“我能够接收 DNSSEC security RRs”，`0` 时服务器不会附加相关字段供验证.
+  - Response: 服务器必须把 Query 中的 `DO` 值复制到 Response.
+- `CO` (EDNS): Compact Answers OK
+  - Query: `1` 表示 requester 支持 RFC 9824 定义的 Compact Answers / Compact Denial of Existence，允许服务器针对不存在的数据使用这种更紧凑的 DNSSEC 响应形式。
+  - Response: 用于协商/表示对应 Compact Answers 能力；具体行为遵循 RFC 9824
+- `DE` (EDNS): Delegation Extensions
+  - 不稳定，本项目暂时忽略.
+
+## DNS RCODEs
+
+[iana](https://www.iana.org/assignments/dns-parameters#dns-parameters-6)
+
 ## Project status
 
 RugDNS is currently in heavy development, expect breaking changes.
