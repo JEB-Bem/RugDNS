@@ -1,4 +1,4 @@
-# rugdns
+# RugDNS
 
 ## 大致设计
 
@@ -15,3 +15,11 @@
 - 我在想那个 DNSSEC 如果 verify 不通过的话，能不能映射到我们自己的 ip 上，然后这个是一个本地 Web 服务，只有用户允许，才会返回真正的 DNS
 
 TODO: hickory-resolver 是否会自动识别 env proxy 用于 DoH？
+
+## Project status
+
+RugDNS is currently in heavy development, expect breaking changes.
+
+## License
+
+RugDNS is MIT-licensed. For more information check the [LICENSE](./LICENSE) file.
