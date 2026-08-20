@@ -1,3 +1,10 @@
+###############################################################################
+#                             Global settings                                 #
+###############################################################################
+bind = "127.0.0.1"
+port = 8553
+
+
 # Acquire dnscript public resolver list from network.
 # If all URLs are unreachable, use the offline `resolvers.md` file
 [sources]
