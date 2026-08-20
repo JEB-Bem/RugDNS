@@ -36,7 +36,8 @@ impl RequestHandler for RugDnsHandler {
         debug!("Received request: {request:?}");
         // 这里使用了 Deref trait，实际上 request: Request 被转换为了 MessageRequest
         debug!("Building MessageResponseBuilder...");
-        let builder = MessageResponseBuilder::from_message_request(request);
+        let mut builder = MessageResponseBuilder::from_message_request(request);
+        if let Some(edns) = request.edns() { builder.edns(edns.to_owned()); }
         let query = {
             if request.queries().len() > 1 {
                 // RCODE reference: https://www.iana.org/assignments/dns-parameters#dns-parameters-6
