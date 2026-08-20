@@ -5,10 +5,12 @@ edition = "2024"
 license = "MIT"
 
 [dependencies]
-hickory-server = { version = "0.26.1", features = ["dnssec-aws-lc-rs", "resolver"] }
-hickory-resolver = { version = "0.26.1", features = ["https-aws-lc-rs"] }
+hickory-server = { version = "0.25"}
+hickory-proto = { version = "0.25", features = ["tls-aws-lc-rs", "https-aws-lc-rs", "webpki-roots"] }
+hickory-client = { version = "0.25", features = ["dnssec-aws-lc-rs"] }
+rustls = "0.23"
 async-trait = { version = "0.1" }
-tokio = { version = "1.21", features = ["net", "fs"] }
+tokio = { version = "1.21", features = ["net", "fs", "process"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 base64 = "0.22"
