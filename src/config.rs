@@ -1,12 +1,15 @@
 use minisign_verify::{PublicKey, Signature};
 use anyhow::Result;
-use std::{fs, collections::HashMap};
+use std::{collections::HashMap, fs, net::IpAddr};
 use tracing::{info, debug, warn};
 use serde::{Deserialize, Serialize};
-use tokio::task::JoinSet;
+use tokio::{task::JoinSet, sync::RwLock};
+use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
+    pub bind: IpAddr,
+    pub port: u16,
     pub sources: Sources,
 }
 
@@ -95,7 +98,7 @@ fn find_config() -> Option<&'static str> {
 }
 
 /// Read Configuration File, then initialize the public resolvers configurations
-pub async fn init_config(path: Option<&str>) -> Box<Config> {
+pub async fn init_config(path: Option<&str>) -> Arc<RwLock<Config>> {
     // Read Configuration
     let path =
         if let Some(path) = path { path }
@@ -106,14 +109,11 @@ pub async fn init_config(path: Option<&str>) -> Box<Config> {
     let content = fs::read_to_string(path).expect("read config");
 
     debug!("Parsing configurations...");
-    let mut config: Box<Config> = Box::new(
-        toml::from_str(&content).expect("parse config from toml")
-    );
+    let mut config: Config = toml::from_str(&content).expect("parse config from toml");
 
     debug!("Parsing DNS Servers...");
 
-    let servers = config.sources.servers
-        .get_or_insert_with(HashMap::new);
+    let servers = config.sources.servers.get_or_insert_with(HashMap::new);
     let urls = config.sources.public_resolvers.clone();
     let pk = config.sources.minisign_key.clone();
     if let Err(e) = fetch_resolvers(urls, pk, servers).await {
@@ -124,7 +124,7 @@ pub async fn init_config(path: Option<&str>) -> Box<Config> {
         panic!("no resolver servers configurations found");
     }
 
-    config
+    Arc::new(RwLock::new(config))
 }
 
 #[cfg(test)]
@@ -144,9 +144,6 @@ mod tests {
     async fn test_init_config() {
         crate::init_tracing();
         let mut config = init_config(None).await;
-        config.sources.servers = Some(HashMap::new());
-        // let servers = config.sources.servers.as_mut().unwrap();
-        // let alidns = dnstamp::parse_stamp("sdns://AgAAAAAAAAAACTIyMy41LjUuNSCY49XlNq8pWM0vfxT3BO9KJ20l4zzWXy5l9eTycnwTMAkyMjMuNS41LjUKL2Rucy1xdWVyeQA").unwrap();
     }
 
 }

@@ -25,11 +25,16 @@ async fn main() {
 
     let config = config::init_config(None).await;
 
-    let handler = RugDnsHandler::new(&config);
-    let mut server  = Server::new(handler);
-    let socket  = UdpSocket::bind("127.0.0.1:8553").await.expect("binding listener to 127.0.0.1:8553");
-    dbg!(&socket);
-    info!("Bind on 127.0.0.1:8553");
+    let host_port = {
+        let config_guard = config.read().await;
+        format!("{}:{}", config_guard.bind, config_guard.port)
+    };
+    let socket  = UdpSocket::bind(&host_port).await.expect(&format!("binding listener to {}", host_port));
+    info!("Bind on {}", host_port);
+
+    let resolver = RugDnsResolver::init(config.clone()).await;
+    let handler = RugDnsHandler::new(config.clone(), resolver);
+    let mut server  = ServerFuture::new(handler);
 
     server.register_socket(socket);
 
