@@ -1109,6 +1109,7 @@ dependencies = [
  "async-trait",
  "base64",
  "data-encoding",
+ "futures-util",
  "hickory-client",
  "hickory-proto",
  "hickory-server",

@@ -50,7 +50,7 @@ impl RequestHandler for RugDnsHandler {
         };
         
         debug!("Send lookup query {query:?} to rug resolver");
-        match self.resolver.lookup(query).await {
+        match self.resolver.resolve(query).await {
             Ok(mut resp) => {
                 resp.set_id(request.id());
                 let name_servers = resp
@@ -72,7 +72,7 @@ impl RequestHandler for RugDnsHandler {
                 );
                 debug!("Built response: {response:?}");
                 response_handle.send_response(response).await.unwrap()
-            }
+            },
             Err(err) => {
                 let response = builder.error_msg(request.header(), ResponseCode::ServFail);
                 warn!("resolver lookup error: {err}");

@@ -117,6 +117,12 @@ impl DNScryptResolver {
             provider_name: provider_name.into(),
         })
     }
+
+    pub fn props(&self) -> u64 { self.props }
+    pub fn addr(&self) -> &IpAddr { &self.addr }
+    pub fn port(&self) -> u16 { self.port }
+    pub fn pk(&self) -> &str { &self.pk }
+    pub fn provider_name(&self) -> &str { &self.provider_name }
 }
 
 impl StampConvert for DNScryptResolver {
@@ -206,6 +212,14 @@ impl DoHResolver {
     pub fn bootstraps_as_mut<'a>(&'a mut self) -> &'a mut Vec<IpAddr> {
         return self.bootstraps.as_mut()
     }
+    
+    pub fn props(&self) -> u64 { self.props }
+    pub fn addr(&self) -> &Option<IpAddr> { &self.addr }
+    pub fn hashi(&self) -> &Vec<String> { &self.hashi }
+    pub fn host(&self) -> &Host { &self.host }
+    pub fn port(&self) -> u16 { self.port }
+    pub fn path(&self) -> &str { &self.path }
+    pub fn bootstraps(&self) -> &Vec<IpAddr> { &self.bootstraps }
 }
 
 impl StampConvert for DoHResolver {

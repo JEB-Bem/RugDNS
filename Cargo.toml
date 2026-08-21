@@ -21,3 +21,8 @@ minisign-verify = "0.2"
 reqwest = "0.12"
 anyhow = "1.0"
 serde = "1.0"
+
+[dependencies.futures-util]
+version = "0.3.5"
+features = ["std"]
+default-features = false

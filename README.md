@@ -14,7 +14,9 @@
 
 - 我在想那个 DNSSEC 如果 verify 不通过的话，能不能映射到我们自己的 ip 上，然后这个是一个本地 Web 服务，只有用户允许，才会返回真正的 DNS
 
-TODO: hickory-resolver 是否会自动识别 env proxy 用于 DoH？
+我的所有 resolver 都根据是否 DNSSEC 分成两个列表（DHCP 除外），根据用户发送的查询
+- 如果有 `DO` Flag，那只运行 DNSSEC 的（除非没有 DNSSEC resolver，我就只能强征一个不支持 DNSSEC 的了），挑选 ?? 个来运行，然后不停运行直到超时或收到一个可以返回的响应。
+- 如果**没有**设置 `DO` Flag，那就两个列表各自选 ?? 个来运行。如果任何一个resolver返回非正常响应，都换一个，直到超时。如果其中有一个正常响应，那就直接用这个结果返回，如果这个结果没有经过验证或验证失败，直接设置 AD 为 0 即可.
 
 ## DNS Header Flags and EDNS Header Flags
 
@@ -26,7 +28,7 @@ TODO: hickory-resolver 是否会自动识别 env proxy 用于 DoH？
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
     |                      ID                       |
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-    |QR|   Opcode  |AA|TC|RD|RA|   Z    |   RCODE   |
+    |QR|   Opcode  |AA|TC|RD|RA|Z |AD|CD|   RCODE   |
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 ```
 
@@ -83,6 +85,20 @@ TODO: hickory-resolver 是否会自动识别 env proxy 用于 DoH？
 [dnssec-failed.org.](https://dnsviz.net/d/dnssec-failed.org/dnssec/)
 [luogu.com.cn](https://dnsviz.net/d/luogu.com.cn/dnssec/)
 
+## Plan
+
+>[!NOTE]
+> Add corresponding test.
+
+- [ ] (Resolver) Re-establish HTTP2 connection.
+- [ ] (Handler/Resolver) 
+- [ ] (Handler/Resolver) Timeout machanism.
+- [ ] (Resolver) Support udp, tcp, DNScrypt(with/without proxy) and https(with/without proxy).
+- [ ] (Resolver) Customed resolvers.
+- [ ] (Resolver) Selection and Fallback machanism.
+- [ ] (Handler) Handle resolver error.
+- [ ] (Handler) DNS Cache.
+
 ## Resources
 
 - DNSViz - visual chain and validation diagnostics: https://dnsviz.net/
@@ -90,6 +106,7 @@ TODO: hickory-resolver 是否会自动识别 env proxy 用于 DoH？
 - DNS-OARC - operational community, tools and measurement: https://www.dns-oarc.net/
 - IANA DNSSEC pages with root key material and ceremony archives: https://www.iana.org/dnssec
 - Internet Society Deploy360 pages on DNSSEC basics and tools: https://www.internetsociety.org/deploy360/dnssec/
+- Test Tool - test whether you are protected by DNSSEC: http://www.dnssec-or-not.com/
 
 ## Project status
 
