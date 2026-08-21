@@ -75,6 +75,22 @@ TODO: hickory-resolver 是否会自动识别 env proxy 用于 DoH？
 
 [iana](https://www.iana.org/assignments/dns-parameters#dns-parameters-6)
 
+## Issues
+
+配置错误或不提供 DNSSEC 功能的服务器会导致 DNSSEC Client 发生不正常的解析行为：
+
+[fanyi.baidu.com.](https://dnsviz.net/d/fanyi.baidu.com/dnssec/)
+[dnssec-failed.org.](https://dnsviz.net/d/dnssec-failed.org/dnssec/)
+[luogu.com.cn](https://dnsviz.net/d/luogu.com.cn/dnssec/)
+
+## Resources
+
+- DNSViz - visual chain and validation diagnostics: https://dnsviz.net/
+- Verisign DNSSEC resources and analyzers: https://www.verisign.com/news-insights/dnssec/
+- DNS-OARC - operational community, tools and measurement: https://www.dns-oarc.net/
+- IANA DNSSEC pages with root key material and ceremony archives: https://www.iana.org/dnssec
+- Internet Society Deploy360 pages on DNSSEC basics and tools: https://www.internetsociety.org/deploy360/dnssec/
+
 ## Project status
 
 RugDNS is currently in heavy development, expect breaking changes.
