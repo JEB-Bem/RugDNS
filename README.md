@@ -93,11 +93,14 @@
 - [x] (Resolver) Re-establish HTTP2 connection.
     - [ ] Add test.
 - [x] (Handler/Resolver) Timeout machanism.
+    - [ ] Add test.
 - [ ] (Resolver) Support udp, tcp, DNScrypt(with/without proxy) and https(with/without proxy).
 - [ ] (Resolver) Customed resolvers.
 - [ ] (Resolver) Selection and Fallback machanism.
 - [ ] (Handler) Handle resolver error.
 - [ ] (Handler) DNS Cache.
+
+[Test Plan](./TestPlan.md)
 
 ## Resources
 
