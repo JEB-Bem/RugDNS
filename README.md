@@ -99,6 +99,9 @@
 - [ ] (Resolver) Selection and Fallback machanism.
 - [ ] (Handler) Handle resolver error.
 - [ ] (Handler) DNS Cache.
+- [ ] (Resolver) Fallback DoH to DNScrypt if have a network error.
+- [ ] (Resolver) If a domain didn't hit the GeoSite list, lookup its ns domain in a new task as a auxiliary reference.
+- [ ] (Resolver) If a domain's a res locates in China, add it to our GeoSite List.
 
 [Test Plan](./TestPlan.md)
 
