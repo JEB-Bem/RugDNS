@@ -92,7 +92,7 @@
 
 - [x] (Resolver) Re-establish HTTP2 connection.
     - [ ] Add test.
-- [ ] (Handler/Resolver) Timeout machanism.
+- [x] (Handler/Resolver) Timeout machanism.
 - [ ] (Resolver) Support udp, tcp, DNScrypt(with/without proxy) and https(with/without proxy).
 - [ ] (Resolver) Customed resolvers.
 - [ ] (Resolver) Selection and Fallback machanism.

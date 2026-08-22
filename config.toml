@@ -3,7 +3,7 @@
 ###############################################################################
 bind = "127.0.0.1"
 port = 8553
-
+timeout_s = 5       # [0, 256) seconds, 0 means no limit.
 
 # Acquire dnscript public resolver list from network.
 # If all URLs are unreachable, use the offline `resolvers.md` file

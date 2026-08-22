@@ -10,7 +10,7 @@ use hickory_proto::{
 };
 use tracing::{info, debug, warn, error};
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::{sync::RwLock, time::{self, Duration}};
 
 pub struct RugDnsHandler {
     config: Arc<RwLock<Config>>,
@@ -50,9 +50,22 @@ impl RequestHandler for RugDnsHandler {
         };
         
         debug!("Send lookup query {query:?} to rug resolver");
-        match self.resolver.resolve(query).await {
+        let seconds = self.config.read().await.timeout_s as u64;
+        match if seconds == 0 {
+            // 0 seconds means no limit
+            self.resolver.resolve(query).await
+        } else {
+            // Set a timeout
+            time::timeout(
+                Duration::from_secs(seconds),
+                self.resolver.resolve(query)
+            ).await.expect("resolve query")
+        } {
             Ok(mut resp) => {
+                // Set response `id` with the request `id`.
                 resp.set_id(request.id());
+                
+                // Split resp.name_servers into SOA and non-SOA entries.
                 let name_servers = resp
                     .name_servers()
                     .iter()

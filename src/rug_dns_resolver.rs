@@ -12,6 +12,7 @@ use hickory_proto::{
 use tokio::{
     sync::RwLock,
     task::JoinHandle,
+    time::{self, Duration},
 };
 use futures_util::stream::Stream;
 use std::{collections::HashMap, ops::Deref, pin::Pin, sync::Arc};
@@ -176,8 +177,15 @@ impl RugDnsResolver {
     
     /// A *classic* DNS query
     pub async fn resolve(&self, query: Query) -> Result<DnsResponse, ProtoError> {
+        let seconds = self.config.read().await.timeout_s / 5 * 3;
+            
         for _ in 0..3 {
-            match self.lookup(query.clone()).await {
+            match if seconds == 0 {
+                self.lookup(query.clone()).await
+            } else {
+                let t = Duration::from_secs(seconds as u64);
+                time::timeout(t, self.lookup(query.clone())).await.expect("lookup")
+            } {
                 Ok(resp) => return Ok(resp),
                 Err(err) => self.handle_err(err).await?,
             };
