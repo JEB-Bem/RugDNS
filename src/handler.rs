@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::rug_dns_resolver::RugDnsResolver;
+use crate::resolver::RugDnsResolver;
 use hickory_server::{
     server::{Request, RequestHandler, ResponseHandler, ResponseInfo},
     authority::MessageResponseBuilder
