@@ -119,20 +119,35 @@ impl RugDnsResolver {
             host,
             resolver.path().into()
         );
-        let (client, bg) = DnssecClient::connect(stream).await.expect(&format!("connect with {:?}", resolver.host()));
-        info!("Client built with target: 223.5.5.5");
+        if resolver.props() & 0x1 == 0x1 {
+            // The resolver support DNSSEC
+            let (client, bg) = DnssecClient::connect(stream).await.expect(&format!("connect with {:?}", resolver.host()));
+            info!("Client built with target: {}", resolver.host());
 
-        let bg_handle = tokio::spawn(bg);
-        State {
-            client: RugClient::SecClient(client),
-            bg_handle,
-            resolver: DnsResolver::DoH(resolver),
-            score: 1000,
+            let bg_handle = tokio::spawn(bg);
+            State {
+                client: RugClient::SecClient(client),
+                bg_handle,
+                resolver: DnsResolver::DoH(resolver),
+                score: 1000,
+            }
+        } else {
+            // The resovler do not support DNSSEC
+            let (client, bg) = Client::connect(stream).await.expect(&format!("connect with {:?}", resolver.host()));
+            info!("Client built with target: {}", resolver.host());
+
+            let bg_handle = tokio::spawn(bg);
+            State {
+                client: RugClient::Client(client),
+                bg_handle,
+                resolver: DnsResolver::DoH(resolver),
+                score: 1000,
+            }
         }
     }
     
     pub async fn reconn_doh(&self) {
-        warn!("bg_handle finished, need a new one.");
+        warn!("http2 connection dead, need a new one.");
         let mut state = self.state.write().await;
         let resolver = match &state.resolver {
             DnsResolver::DNScrypt(_) => {
@@ -157,10 +172,19 @@ impl RugDnsResolver {
             host,
             resolver.path().into()
         );
-        let (client, bg) = DnssecClient::connect(stream).await.expect(&format!("connect with {:?}", resolver.host()));
-        let bg_handle = tokio::spawn(bg);
-        state.client = RugClient::SecClient(client);
-        state.bg_handle = bg_handle;
+        if resolver.props() & 0x1 == 0x1 {
+            // Support DNSSEC
+            let (client, bg) = DnssecClient::connect(stream).await.expect(&format!("connect with {:?}", resolver.host()));
+            let bg_handle = tokio::spawn(bg);
+            state.client = RugClient::SecClient(client);
+            state.bg_handle = bg_handle;
+        } else {
+            // DO NOT support DNSSEC
+            let (client, bg) = Client::connect(stream).await.expect(&format!("connect with {:?}", resolver.host()));
+            let bg_handle = tokio::spawn(bg);
+            state.client = RugClient::Client(client);
+            state.bg_handle = bg_handle;
+        }
     }
     
     pub async fn reconn_if_unhealthy(&self) {
