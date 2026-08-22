@@ -5,7 +5,7 @@ use tracing::{info, debug, warn, error};
 use serde::{Deserialize, Serialize};
 use tokio::{fs, task::JoinSet, sync::RwLock};
 use std::sync::Arc;
-use std::{env, path::PathBuf, ffi::OsString};
+use std::{path::PathBuf, ffi::OsString};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
@@ -173,6 +173,7 @@ pub async fn init_config(path: Option<&str>) -> Arc<RwLock<Config>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
 
     #[tokio::test]
     async fn test_fetch_file() {
