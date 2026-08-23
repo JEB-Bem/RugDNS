@@ -1,9 +1,44 @@
+
+#  ██████╗ ██╗   ██╗ ██████╗ ██████╗ ███╗   ██╗███████╗
+#  ██╔══██╗██║   ██║██╔════╝ ██╔══██╗████╗  ██║██╔════╝
+#  ██████╔╝██║   ██║██║  ███╗██║  ██║██╔██╗ ██║███████╗
+#  ██╔══██╗██║   ██║██║   ██║██║  ██║██║╚██╗██║╚════██║
+#  ██║  ██║╚██████╔╝╚██████╔╝██████╔╝██║ ╚████║███████║
+#  ╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
+
 ###############################################################################
 #                             Global settings                                 #
 ###############################################################################
 bind = "127.0.0.1"
 port = 8553
-timeout_s = 5       # [0, 256) seconds, 0 means no limit.
+timeout_s = 5   # [0, 256) seconds, 0 means no limit.
+
+# Resovler Server Names
+# ****************************************************************
+# ** The server name is totally compatiable with dnscrypt.info. **
+# ** You can choose a server name from the online list:         **
+# ** https://dnscrypt.info/public-servers/                      **
+# ** Learn more about the lists, see [sources] below.           **
+# ** Currently support DoH, DNSCrypt and Plain TCP/UDP only.    **
+# ****************************************************************
+
+# Looking for a suitable DNS Server? Use the Interactive map of public
+# DNSCrypt and DoH servers worldwide:
+# https://dnscrypt.info/map
+
+# The default config works well during the development process in China. :)
+
+#                DNSCrypt       DNSCrypt       DoH       DoH       DoH
+proxy_servers = ['scaleway-fr', 'adguard-dns', 'google', 'yandex', 'cloudflare']
+
+direct_servers = [
+    "alidns-doh"
+]
+
+# Use plain TCP/UDP protocol. DNSSEC is disabled unless you define a custom
+# DNS Stamp below. (eg. google-plain)
+# Only `default_servers` accepts plain IP addresses such as '8.8.8.8'.
+default_servers = ['223.5.5.5', '8.8.8.8', 'google-plain']
 
 # Acquire dnscript public resolver list from network.
 # If all URLs are unreachable, use the offline `resolvers.md` file
@@ -15,10 +50,10 @@ public_resolvers = [
     "https://cdn.jsdelivr.net/gh/DNSCrypt/dnscrypt-resolvers@master/v3/public-resolvers.md",
 ]
 
-# Uncomment following lines to define your custom dns servers
-# [sources.servers]
+# Define your custom dns servers
+# A useful tool: https://dnscrypt.info/stamps
+[sources.servers]
 
-# alidns = [
-#     "sdns://AgAAAAAAAAAACTIyMy41LjUuNSCY49XlNq8pWM0vfxT3BO9KJ20l4zzWXy5l9eTycnwTMAkyMjMuNS41LjUKL2Rucy1xdWVyeQ",
-#     "sdns://AgAAAAAAAAAACTIyMy42LjYuNiCY49XlNq8pWM0vfxT3BO9KJ20l4zzWXy5l9eTycnwTMAkyMjMuNi42LjYKL2Rucy1xdWVyeQ"
-# ]
+google-plain = [
+    "sdns://AAEAAAAAAAAABzguOC44Ljg"
+]

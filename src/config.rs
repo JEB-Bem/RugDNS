@@ -12,14 +12,31 @@ pub struct Config {
     pub bind: IpAddr,
     pub port: u16,
     pub timeout_s: u8,
+    pub proxy_servers: Vec<String>,
+    pub direct_servers: Vec<String>,
+    pub default_servers: Vec<String>,
     pub sources: Sources,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Sources {
     pub minisign_key: String,
     pub public_resolvers: Vec<String>,
     pub servers: Option<HashMap<String, Vec<String>>>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            bind: "127.0.0.1".parse().unwrap(),
+            port: 8553,
+            timeout_s: 5,
+            proxy_servers: Vec::default(),
+            direct_servers: Vec::default(),
+            default_servers: Vec::default(),
+            sources: Sources::default(),
+        }
+    }
 }
 
 fn cache_dir() -> Option<PathBuf> {
@@ -217,5 +234,11 @@ mod tests {
 
         // Remove the test directory
         let _ = fs::remove_dir_all(&cache_dir).await;
+    }
+    
+    // Smoke test
+    #[tokio::test]
+    async fn test_init_config() {
+        init_config(None).await;
     }
 }
