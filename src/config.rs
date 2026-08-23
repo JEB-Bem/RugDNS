@@ -174,6 +174,7 @@ pub async fn init_config(path: Option<&str>) -> Arc<RwLock<Config>> {
 mod tests {
     use super::*;
     use std::env;
+    use rand::{distr::Alphanumeric, RngExt};
 
     #[tokio::test]
     async fn test_fetch_file() {
@@ -184,12 +185,19 @@ mod tests {
         ).await;
     }
     
+    // TODO: Make it compatible with Windows and MacOS
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn test_cache_file() {
         crate::init_tracing();
-        unsafe { env::set_var("CACHE_DIRECTORY", "/tmp/rugdns") };
+        let mut rng = rand::rng();
+        let path = format!(
+            "/tmp/rugdns/rugdns-{}",
+            (0..8).map(|_| rng.sample(Alphanumeric) as char).collect::<String>()
+        );
+        unsafe { env::set_var("CACHE_DIRECTORY", &path) };
         let cache_dir = cache_dir().unwrap();
-        assert_eq!(cache_dir, PathBuf::from("/tmp/rugdns"));
+        assert_eq!(cache_dir, PathBuf::from(path));
         let _ = fs::remove_dir_all(&cache_dir).await;
         fetch_resolvers(
             vec!["https://download.dnscrypt.info/dnscrypt-resolvers/v3/public-resolvers.md".into()],
@@ -197,7 +205,7 @@ mod tests {
             &mut HashMap::<String, Vec<String>>::new()
         ).await.expect("fetch resolvers");
         
-        assert!(std::fs::exists(cache_dir).unwrap());
+        assert!(std::fs::exists(&cache_dir).unwrap());
 
         let mut map = HashMap::<String, Vec<String>>::new();
         fetch_resolvers(
@@ -206,5 +214,8 @@ mod tests {
             &mut map,
         ).await.expect("fetch resolvers");
         assert!(map.get("alidns-doh").is_some());
+
+        // Remove the test directory
+        let _ = fs::remove_dir_all(&cache_dir).await;
     }
 }
