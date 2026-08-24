@@ -1,40 +1,39 @@
-use minisign_verify::{PublicKey, Signature};
+use std::{collections::HashMap, ffi::OsString, net::IpAddr, path::PathBuf, sync::Arc};
+
 use anyhow::Result;
-use std::{collections::HashMap, net::IpAddr};
-use tracing::{info, debug, warn, error};
+use minisign_verify::{PublicKey, Signature};
 use serde::{Deserialize, Serialize};
-use tokio::{fs, task::JoinSet, sync::RwLock};
-use std::sync::Arc;
-use std::{path::PathBuf, ffi::OsString};
+use tokio::{fs, sync::RwLock, task::JoinSet};
+use tracing::{debug, error, info, warn};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    pub bind: IpAddr,
-    pub port: u16,
-    pub timeout_s: u8,
-    pub proxy_servers: Vec<String>,
-    pub direct_servers: Vec<String>,
+    pub bind:            IpAddr,
+    pub port:            u16,
+    pub timeout_s:       u8,
+    pub proxy_servers:   Vec<String>,
+    pub direct_servers:  Vec<String>,
     pub default_servers: Vec<String>,
-    pub sources: Sources,
+    pub sources:         Sources,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Sources {
-    pub minisign_key: String,
+    pub minisign_key:     String,
     pub public_resolvers: Vec<String>,
-    pub servers: Option<HashMap<String, Vec<String>>>,
+    pub servers:          Option<HashMap<String, Vec<String>>>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Config {
-            bind: "127.0.0.1".parse().unwrap(),
-            port: 8553,
-            timeout_s: 5,
-            proxy_servers: Vec::default(),
-            direct_servers: Vec::default(),
+            bind:            "127.0.0.1".parse().unwrap(),
+            port:            8553,
+            timeout_s:       5,
+            proxy_servers:   Vec::default(),
+            direct_servers:  Vec::default(),
             default_servers: Vec::default(),
-            sources: Sources::default(),
+            sources:         Sources::default(),
         }
     }
 }
@@ -88,15 +87,13 @@ async fn load_file(mut path: OsString, pk: &str) -> (String, String) {
 async fn fetch_resolvers(
     urls: Vec<String>,
     pk: String,
-    servers: &mut HashMap<String, Vec<String>>
+    servers: &mut HashMap<String, Vec<String>>,
 ) -> Result<()> {
     let mut set = JoinSet::new();
 
     for url in urls {
         let pk_clone = pk.clone();
-        set.spawn(async move {
-            fetch_file(&url, &pk_clone).await
-        });
+        set.spawn(async move { fetch_file(&url, &pk_clone).await });
     }
 
     let cache_dir = cache_dir().unwrap();
@@ -109,21 +106,17 @@ async fn fetch_resolvers(
             None => {
                 error!("All downloading tasks failed");
                 info!("Try load cached files.");
-                break load_file(
-                    cache_dir.join("resolvers.md").as_os_str().to_os_string(),
-                    &pk
-                ).await
+                break load_file(cache_dir.join("resolvers.md").as_os_str().to_os_string(), &pk)
+                    .await;
             }
         }
     };
-    
+
     fs::create_dir_all(&cache_dir).await.expect(&format!("create cache dir: {cache_dir:?}"));
-    fs::write(cache_dir.join("resolvers.md"), &content).await.expect(
-        "write resolvers"
-    );
-    fs::write(&cache_dir.join("resolvers.md.minisig"), &content_sig).await.expect(
-        "write resolvers' minisig"
-    );
+    fs::write(cache_dir.join("resolvers.md"), &content).await.expect("write resolvers");
+    fs::write(&cache_dir.join("resolvers.md.minisig"), &content_sig)
+        .await
+        .expect("write resolvers' minisig");
 
     let mut server_name = String::new();
     for line in content.lines() {
@@ -133,10 +126,7 @@ async fn fetch_resolvers(
             if server_name.is_empty() {
                 panic!("found 'sdns://' before `server_name`");
             }
-            servers
-                .entry(server_name.clone())
-                .or_default()
-                .push(line.trim().to_owned())
+            servers.entry(server_name.clone()).or_default().push(line.trim().to_owned())
         }
     }
 
@@ -146,9 +136,8 @@ async fn fetch_resolvers(
 }
 
 fn find_config() -> Option<&'static str> {
-    const PATHES: [&str; 3] = [
-        "./config.toml", "~/.config/rugdns/config.toml", "/etc/rugdns/config.toml"
-    ];
+    const PATHES: [&str; 3] =
+        ["./config.toml", "~/.config/rugdns/config.toml", "/etc/rugdns/config.toml"];
     for path in PATHES {
         if std::fs::exists(path).unwrap() {
             return Some(path);
@@ -158,12 +147,15 @@ fn find_config() -> Option<&'static str> {
 }
 
 /// Read Configuration File, then initialize the public resolvers configurations
-pub async fn init_config(path: Option<&str>) -> Arc<RwLock<Config>> {
+pub async fn init_config(path: Option<&str>) -> Arc<Config> {
     // Read Configuration
-    let path =
-        if let Some(path) = path { path }
-        else if let Some(path) = find_config(){ path }
-        else { panic!("no `config.toml` found."); };
+    let path = if let Some(path) = path {
+        path
+    } else if let Some(path) = find_config() {
+        path
+    } else {
+        panic!("no `config.toml` found.");
+    };
 
     debug!("Reading configurations from '{path}.'");
     let content = fs::read_to_string(path).await.expect("read config");
@@ -184,24 +176,34 @@ pub async fn init_config(path: Option<&str>) -> Arc<RwLock<Config>> {
         panic!("no resolver servers configurations found");
     }
 
-    Arc::new(RwLock::new(config))
+    if config.default_servers.is_empty()
+        || config.direct_servers.is_empty()
+        || config.proxy_servers.is_empty()
+    {
+        panic!("each server list should have at least one server.");
+    }
+
+    Arc::new(config)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::env;
-    use rand::{distr::Alphanumeric, RngExt};
+
+    use rand::{RngExt, distr::Alphanumeric};
+
+    use super::*;
 
     #[tokio::test]
     async fn test_fetch_file() {
         crate::init_tracing();
         fetch_file(
             "https://download.dnscrypt.info/dnscrypt-resolvers/v3/public-resolvers.md",
-            "RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3"
-        ).await;
+            "RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3",
+        )
+        .await;
     }
-    
+
     // TODO: Make it compatible with Windows and MacOS
     #[cfg(target_os = "linux")]
     #[tokio::test]
@@ -219,9 +221,11 @@ mod tests {
         fetch_resolvers(
             vec!["https://download.dnscrypt.info/dnscrypt-resolvers/v3/public-resolvers.md".into()],
             "RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3".into(),
-            &mut HashMap::<String, Vec<String>>::new()
-        ).await.expect("fetch resolvers");
-        
+            &mut HashMap::<String, Vec<String>>::new(),
+        )
+        .await
+        .expect("fetch resolvers");
+
         assert!(std::fs::exists(&cache_dir).unwrap());
 
         let mut map = HashMap::<String, Vec<String>>::new();
@@ -229,16 +233,16 @@ mod tests {
             vec![],
             "RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3".into(),
             &mut map,
-        ).await.expect("fetch resolvers");
+        )
+        .await
+        .expect("fetch resolvers");
         assert!(map.get("alidns-doh").is_some());
 
         // Remove the test directory
         let _ = fs::remove_dir_all(&cache_dir).await;
     }
-    
+
     // Smoke test
     #[tokio::test]
-    async fn test_init_config() {
-        init_config(None).await;
-    }
+    async fn test_init_config() { init_config(None).await; }
 }

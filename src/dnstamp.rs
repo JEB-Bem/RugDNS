@@ -1,9 +1,10 @@
-use std::{net::{IpAddr}, fmt};
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use std::{fmt, net::IpAddr};
+
+use anyhow::Result;
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use data_encoding::HEXLOWER;
 use regex::regex;
 use tracing::{debug, info};
-use data_encoding::HEXLOWER;
-use anyhow::Result;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,28 +27,28 @@ pub enum Host {
 
 #[derive(Debug, PartialEq)]
 pub struct DNScryptResolver {
-    props: u64,
-    addr: IpAddr,
-    port: u16,
-    pk: String,
+    props:         u64,
+    addr:          IpAddr,
+    port:          u16,
+    pk:            String,
     provider_name: String,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct DoHResolver {
-    props: u64,
-    addr: Option<IpAddr>,
-    hashi: Vec<String>,
-    host: Host,
-    port: u16,
-    path: String,
+    props:      u64,
+    addr:       Option<IpAddr>,
+    hashi:      Vec<String>,
+    host:       Host,
+    port:       u16,
+    path:       String,
     bootstraps: Vec<IpAddr>,
 }
 
 pub trait StampConvert {
     /// Parse bytes without a protocol identifier into a DnsResolver.
     fn parse_from_bytes(bytes: &[u8]) -> Option<DnsResolver>;
-    
+
     /// Encode a DnsResolver into a DNS Stamp
     fn encode(&self) -> String;
 }
@@ -73,8 +74,8 @@ fn split_hostname<'a>(hostname: &'a str) -> Option<(Host, u16)> {
     match hostname.find(':') {
         Some(ind) => {
             host = &hostname[..ind];
-            port = hostname[ind+1..].parse::<u16>().ok()?;
-        },
+            port = hostname[ind + 1..].parse::<u16>().ok()?;
+        }
         None => {
             host = hostname;
             port = 443;
@@ -83,19 +84,15 @@ fn split_hostname<'a>(hostname: &'a str) -> Option<(Host, u16)> {
 
     if validate_domain(host) {
         debug!("Valide domain: {host:?}.");
-        return Some((Host::Domain(host.into()),port));
+        return Some((Host::Domain(host.into()), port));
     }
 
     Some((Host::Ip(host.parse::<IpAddr>().ok()?), port))
 }
 
-fn from_hex(s: &str) -> Result<Vec<u8>> {
-    Ok(HEXLOWER.decode(s.as_bytes())?)
-}
+fn from_hex(s: &str) -> Result<Vec<u8>> { Ok(HEXLOWER.decode(s.as_bytes())?) }
 
-fn to_hex(s: &[u8]) -> String {
-    HEXLOWER.encode(s)
-}
+fn to_hex(s: &[u8]) -> String { HEXLOWER.encode(s) }
 
 fn lp_str(x: &str) -> Vec<u8> {
     debug!("LP({x})");
@@ -131,7 +128,7 @@ fn vlp_str(lst: &[&str]) -> Vec<u8> {
 
 fn vlp_bytes(lst: &[Vec<u8>]) -> Vec<u8> {
     debug!("VLP({lst:?})");
-    
+
     let (last, rest) = match lst.split_last() {
         Some(v) => v,
         None => return vec![0u8],
@@ -160,33 +157,34 @@ impl fmt::Display for Host {
 }
 
 impl DNScryptResolver {
-    pub fn build(
-        props: u64,
-        hostname: &str,
-        pk: &str,
-        provider_name: &str,
-    ) -> Option<Self> {
+    pub fn build(props: u64, hostname: &str, pk: &str, provider_name: &str) -> Option<Self> {
         let (host, port) = split_hostname(hostname)?;
         let addr = if let Host::Ip(ip) = host {
             ip
-        } else { return None; };
-        if props > 7 { return None; }
-        if pk.len() != 64 || from_hex(pk).is_err() { return None; }
-        if !validate_domain(provider_name) { return None; }
+        } else {
+            return None;
+        };
+        if props > 7 {
+            return None;
+        }
+        if pk.len() != 64 || from_hex(pk).is_err() {
+            return None;
+        }
+        if !validate_domain(provider_name) {
+            return None;
+        }
 
-        Some(Self {
-            props,
-            addr,
-            port,
-            pk: pk.into(),
-            provider_name: provider_name.into(),
-        })
+        Some(Self { props, addr, port, pk: pk.into(), provider_name: provider_name.into() })
     }
 
     pub fn props(&self) -> u64 { self.props }
+
     pub fn addr(&self) -> &IpAddr { &self.addr }
+
     pub fn port(&self) -> u16 { self.port }
+
     pub fn pk(&self) -> &str { &self.pk }
+
     pub fn provider_name(&self) -> &str { &self.provider_name }
 }
 
@@ -196,34 +194,37 @@ impl StampConvert for DNScryptResolver {
         bytes = bytes.get(8..)?;
 
         // addr: LP(addr [:port])
-        let addr_len =
-            u8::from_be_bytes(bytes.get(..1)?.try_into().ok()?) as usize;
+        let addr_len = u8::from_be_bytes(bytes.get(..1)?.try_into().ok()?) as usize;
         bytes = bytes.get(1..)?;
-        if addr_len == 0 { return None; }
+        if addr_len == 0 {
+            return None;
+        }
         let addr = str::from_utf8(bytes.get(..addr_len)?).ok()?;
         bytes = bytes.get(addr_len..)?;
 
         // pk: LP(pk)
-        let pk_len =
-            u8::from_be_bytes(bytes.get(..1)?.try_into().ok()?) as usize;
+        let pk_len = u8::from_be_bytes(bytes.get(..1)?.try_into().ok()?) as usize;
         bytes = bytes.get(1..)?;
-        if pk_len == 0 { return None; }
+        if pk_len == 0 {
+            return None;
+        }
         let pk = to_hex(bytes.get(..pk_len)?);
         bytes = bytes.get(pk_len..)?;
 
         // providerName: LP(providerName)
-        let provider_name_len =
-            u8::from_be_bytes(bytes.get(..1)?.try_into().ok()?) as usize;
+        let provider_name_len = u8::from_be_bytes(bytes.get(..1)?.try_into().ok()?) as usize;
         bytes = bytes.get(1..)?;
-        if provider_name_len == 0 { return None; }
-        let provider_name =
-            str::from_utf8(bytes.get(..provider_name_len)?).ok()?;
+        if provider_name_len == 0 {
+            return None;
+        }
+        let provider_name = str::from_utf8(bytes.get(..provider_name_len)?).ok()?;
 
         Some(DnsResolver::DNScrypt(Self::build(props, addr, &pk, provider_name)?))
     }
+
     fn encode(&self) -> String {
         // protocol identifier
-        let mut bytes = vec![0x01u8];        
+        let mut bytes = vec![0x01u8];
         // props
         bytes.extend_from_slice(&self.props.to_le_bytes());
         // LP(addr[:port])
@@ -241,10 +242,10 @@ pub fn parse_stamp(mut b64_str: &str) -> Option<DnsResolver> {
     b64_str = b64_str.get((b64_str.trim_matches('=').find("sdns://")? + 7)..)?;
     let bytes = URL_SAFE_NO_PAD.decode(b64_str).expect("parse dns stamp");
     match bytes[0] {
-        v if v == ProtocolIdentifier::DNScrypt as u8 =>
-            DNScryptResolver::parse_from_bytes(&bytes[1..]),
-        v if v == ProtocolIdentifier::DoH as u8 =>
-            DoHResolver::parse_from_bytes(&bytes[1..]),
+        v if v == ProtocolIdentifier::DNScrypt as u8 => {
+            DNScryptResolver::parse_from_bytes(&bytes[1..])
+        }
+        v if v == ProtocolIdentifier::DoH as u8 => DoHResolver::parse_from_bytes(&bytes[1..]),
         _ => panic!("unexpected protocol identifier"),
     }
 }
@@ -256,48 +257,63 @@ impl DoHResolver {
         hashi: Vec<String>,
         hostname: &str,
         mut path: &str,
-        bootstraps: Vec<IpAddr>
+        bootstraps: Vec<IpAddr>,
     ) -> Option<Self> {
         let (host, port) = split_hostname(hostname)?;
-        if props > 7 { return None; }
-        if path.is_empty() { path = "/dns-query"; }
-        else if !validate_path(path) { return None; }
+        if props > 7 {
+            return None;
+        }
+        if path.is_empty() {
+            path = "/dns-query";
+        } else if !validate_path(path) {
+            return None;
+        }
 
-        Some(Self {
-            props,
-            hashi,
-            addr,
-            host,
-            port: port.into(),
-            path: path.into(),
-            bootstraps,
-        })
+        Some(Self { props, hashi, addr, host, port: port.into(), path: path.into(), bootstraps })
     }
 
     pub fn set_props(&mut self, props: u64) -> bool {
-        if props > 7 { false }
-        else { self.props = props; true }
+        if props > 7 {
+            false
+        } else {
+            self.props = props;
+            true
+        }
     }
+
     pub fn set_addr(&mut self, ip: IpAddr) { self.addr = Some(ip); }
+
     pub fn set_host(&mut self, host: Host) { self.host = host; }
+
     pub fn set_port(&mut self, port: u16) { self.port = port; }
+
     pub fn set_path(&mut self, path: &str) -> bool {
-        if validate_path(path) { self.path = path.into(); true }
-        else { false }
+        if validate_path(path) {
+            self.path = path.into();
+            true
+        } else {
+            false
+        }
     }
-    pub fn hashi_as_mut<'a>(&'a mut self) -> &'a mut Vec<String> {
-        return self.hashi.as_mut()
-    }
+
+    pub fn hashi_as_mut<'a>(&'a mut self) -> &'a mut Vec<String> { return self.hashi.as_mut(); }
+
     pub fn bootstraps_as_mut<'a>(&'a mut self) -> &'a mut Vec<IpAddr> {
-        return self.bootstraps.as_mut()
+        return self.bootstraps.as_mut();
     }
-    
+
     pub fn props(&self) -> u64 { self.props }
+
     pub fn addr(&self) -> &Option<IpAddr> { &self.addr }
+
     pub fn hashi(&self) -> &Vec<String> { &self.hashi }
+
     pub fn host(&self) -> &Host { &self.host }
+
     pub fn port(&self) -> u16 { self.port }
+
     pub fn path(&self) -> &str { &self.path }
+
     pub fn bootstraps(&self) -> &Vec<IpAddr> { &self.bootstraps }
 }
 
@@ -321,12 +337,16 @@ impl StampConvert for DoHResolver {
         loop {
             let vlen = u8::from_be_bytes(bytes.get(..1)?.try_into().ok()?);
             bytes = bytes.get(1..)?;
-            if vlen == 0 { break }
+            if vlen == 0 {
+                break;
+            }
             let more = (vlen & 0x80) != 0;
             let len = (vlen & 0x7f) as usize;
             hashi.push(to_hex(bytes.get(..len)?));
             bytes = bytes.get(len..)?;
-            if !more { break }
+            if !more {
+                break;
+            }
         }
 
         // hostname: LP(string), may be empty
@@ -352,13 +372,17 @@ impl StampConvert for DoHResolver {
         while !bytes.is_empty() {
             let vlen = u8::from_be_bytes(bytes.get(..1)?.try_into().ok()?);
             bytes = bytes.get(1..)?;
-            if vlen == 0 { break }
+            if vlen == 0 {
+                break;
+            }
             let more = (vlen & 0x80) != 0;
             let len = (vlen & 0x7f) as usize;
             let ip = str::from_utf8(bytes.get(..len)?).ok()?.parse().ok()?;
             bytes = bytes.get(len..)?;
             bootstraps.push(ip);
-            if !more { break }
+            if !more {
+                break;
+            }
         }
 
         Some(DnsResolver::DoH(Self::build(
@@ -367,13 +391,13 @@ impl StampConvert for DoHResolver {
             hashi,
             hostname,
             path,
-            bootstraps
+            bootstraps,
         )?))
     }
 
     fn encode(&self) -> String {
         // protocol identifier
-        let mut bytes = vec![0x02u8];        
+        let mut bytes = vec![0x02u8];
         // props
         bytes.extend_from_slice(&self.props.to_le_bytes());
         // LP(addr)
@@ -382,20 +406,17 @@ impl StampConvert for DoHResolver {
             None => bytes.extend(lp_str("")),
         };
         // VLP(hashi)
-        bytes.extend(
-            vlp_bytes(&self.hashi.iter().map(|s| from_hex(s.as_str()).unwrap()).collect::<Vec<Vec<u8>>>())
-        );
+        bytes.extend(vlp_bytes(
+            &self.hashi.iter().map(|s| from_hex(s.as_str()).unwrap()).collect::<Vec<Vec<u8>>>(),
+        ));
         // LP(hostname[:port])
         bytes.extend(lp_str(&format!("{}:{}", self.host, self.port)));
         // LP(path)
         bytes.extend(lp_str(&self.path));
         // [VLP(bootstraps)]
         if !self.bootstraps.is_empty() {
-            let bootstraps: Vec<String> =
-                self.bootstraps.iter().map(|ip| ip.to_string()).collect();
-            bytes.extend(vlp_str(
-                &bootstraps.iter().map(String::as_str).collect::<Vec<_>>()
-            ));
+            let bootstraps: Vec<String> = self.bootstraps.iter().map(|ip| ip.to_string()).collect();
+            bytes.extend(vlp_str(&bootstraps.iter().map(String::as_str).collect::<Vec<_>>()));
         }
 
         format!("sdns://{}", URL_SAFE_NO_PAD.encode(bytes))
@@ -419,21 +440,31 @@ mod tests {
     fn test_lp() {
         assert_eq!(lp_str(""), vec![0]);
         assert_eq!(lp_str("1234"), vec![4, 0x31, 0x32, 0x33, 0x34]);
-        assert_eq!(lp_str("a3.13b93.12.2-a:V2"), vec![18, 0x61, 0x33, 0x2e, 0x31, 0x33, 0x62, 0x39, 0x33, 0x2e, 0x31, 0x32, 0x2e, 0x32, 0x2d, 0x61, 0x3a, 0x56, 0x32,]);
+        assert_eq!(lp_str("a3.13b93.12.2-a:V2"), vec![
+            18, 0x61, 0x33, 0x2e, 0x31, 0x33, 0x62, 0x39, 0x33, 0x2e, 0x31, 0x32, 0x2e, 0x32, 0x2d,
+            0x61, 0x3a, 0x56, 0x32,
+        ]);
     }
-    
+
     #[test]
     fn test_vlp() {
         assert_eq!(vlp_str(&[""]), vec![0x00]);
         assert_eq!(vlp_str(&["1234"]), vec![0x04, 0x31, 0x32, 0x33, 0x34]);
         assert_eq!(vlp_str(&["1234", ""]), vec![0x84, 0x31, 0x32, 0x33, 0x34, 0x00]);
-        assert_eq!(vlp_str(&["", "1234"]), vec![ 0x80, 0x04, 0x31, 0x32, 0x33, 0x34]);
-        assert_eq!(vlp_str(&["a3.13b93.12.2-a:V2", ""]), vec![0x92, 0x61, 0x33, 0x2e, 0x31, 0x33, 0x62, 0x39, 0x33, 0x2e, 0x31, 0x32, 0x2e, 0x32, 0x2d, 0x61, 0x3a, 0x56, 0x32, 0x00]);
-        
+        assert_eq!(vlp_str(&["", "1234"]), vec![0x80, 0x04, 0x31, 0x32, 0x33, 0x34]);
+        assert_eq!(vlp_str(&["a3.13b93.12.2-a:V2", ""]), vec![
+            0x92, 0x61, 0x33, 0x2e, 0x31, 0x33, 0x62, 0x39, 0x33, 0x2e, 0x31, 0x32, 0x2e, 0x32,
+            0x2d, 0x61, 0x3a, 0x56, 0x32, 0x00
+        ]);
+
         assert_eq!(vlp_bytes(&[vec![]]), vec![0x00]);
         assert_eq!(vlp_bytes(&[vec![0x31, 0x32, 0x33, 0x34]]), vec![0x04, 0x31, 0x32, 0x33, 0x34]);
-        assert_eq!(vlp_bytes(&[vec![0x31, 0x32, 0x33, 0x34], vec![]]), vec![0x84, 0x31, 0x32, 0x33, 0x34, 0x00]);
-        assert_eq!(vlp_bytes(&[vec![], vec![0x31, 0x32, 0x33, 0x34]]), vec![ 0x80, 0x04, 0x31, 0x32, 0x33, 0x34]);
+        assert_eq!(vlp_bytes(&[vec![0x31, 0x32, 0x33, 0x34], vec![]]), vec![
+            0x84, 0x31, 0x32, 0x33, 0x34, 0x00
+        ]);
+        assert_eq!(vlp_bytes(&[vec![], vec![0x31, 0x32, 0x33, 0x34]]), vec![
+            0x80, 0x04, 0x31, 0x32, 0x33, 0x34
+        ]);
     }
 
     #[test]
@@ -505,17 +536,25 @@ mod tests {
     fn test_parse_doh_stamp_basic() {
         crate::init_tracing();
         let expect = DoHResolver::build(
-            /* props= */ 0,
-            /* addr= */ Some("223.5.5.5".parse().unwrap()),
-            /* hashi= */
+            // props=
+            0,
+            // addr=
+            Some("223.5.5.5".parse().unwrap()),
+            // hashi=
             vec!["98e3d5e536af2958cd2f7f14f704ef4a276d25e33cd65f2e65f5e4f2727c1330".into()],
-            /* hostname= */ "223.5.5.5",
-            /* path= */ "/dns-query",
-            /* bootstraps= */ Vec::new(),
-        ).unwrap();
+            // hostname=
+            "223.5.5.5",
+            // path=
+            "/dns-query",
+            // bootstraps=
+            Vec::new(),
+        )
+        .unwrap();
 
         assert_eq!(
-            parse_stamp("sdns://AgAAAAAAAAAACTIyMy41LjUuNSCY49XlNq8pWM0vfxT3BO9KJ20l4zzWXy5l9eTycnwTMAkyMjMuNS41LjUKL2Rucy1xdWVyeQA"),
+            parse_stamp(
+                "sdns://AgAAAAAAAAAACTIyMy41LjUuNSCY49XlNq8pWM0vfxT3BO9KJ20l4zzWXy5l9eTycnwTMAkyMjMuNS41LjUKL2Rucy1xdWVyeQA"
+            ),
             Some(DnsResolver::DoH(expect))
         );
     }
@@ -530,7 +569,8 @@ mod tests {
             "223.5.5.5",
             "/dns-query",
             Vec::new(),
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(
             parse_stamp("sdns://AgAAAAAAAAAACTIyMy41LjUuNQAJMjIzLjUuNS41Ci9kbnMtcXVlcnkA"),
@@ -549,10 +589,13 @@ mod tests {
             "dns.example.com:8443",
             "/dns-query",
             Vec::new(),
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(
-            parse_stamp("sdns://AgEAAAAAAAAAACCrq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urqxRkbnMuZXhhbXBsZS5jb206ODQ0MwovZG5zLXF1ZXJ5"),
+            parse_stamp(
+                "sdns://AgEAAAAAAAAAACCrq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urqxRkbnMuZXhhbXBsZS5jb206ODQ0MwovZG5zLXF1ZXJ5"
+            ),
             Some(DnsResolver::DoH(expect))
         );
     }
@@ -561,14 +604,9 @@ mod tests {
     fn test_parse_doh_stamp_domain_host_port() {
         crate::init_tracing();
         // empty addr, empty hashi, domain host, no bootstraps field at all
-        let expect = DoHResolver::build(
-            0,
-            None,
-            Vec::new(),
-            "dns.example.com",
-            "/dns-query",
-            Vec::new(),
-        ).unwrap();
+        let expect =
+            DoHResolver::build(0, None, Vec::new(), "dns.example.com", "/dns-query", Vec::new())
+                .unwrap();
 
         assert_eq!(
             parse_stamp("sdns://AgAAAAAAAAAAAAAPZG5zLmV4YW1wbGUuY29tCi9kbnMtcXVlcnk"),
@@ -586,10 +624,13 @@ mod tests {
             "dns.example.com",
             "/dns-query",
             Vec::new(),
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(
-            parse_stamp("sdns://AgAAAAAAAAAAAKARERERERERERERERERERERERERERERERERERERERERESAiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIg9kbnMuZXhhbXBsZS5jb20KL2Rucy1xdWVyeQA"),
+            parse_stamp(
+                "sdns://AgAAAAAAAAAAAKARERERERERERERERERERERERERERERERERERERERERESAiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIg9kbnMuZXhhbXBsZS5jb20KL2Rucy1xdWVyeQA"
+            ),
             Some(DnsResolver::DoH(expect))
         );
     }
@@ -597,17 +638,17 @@ mod tests {
     #[test]
     fn test_parse_doh_stamp_bootstraps() {
         crate::init_tracing();
-        let expect = DoHResolver::build(
-            0,
-            None,
-            Vec::new(),
-            "dns.example.com",
-            "/dns-query",
-            vec!["1.1.1.1".parse().unwrap(), "8.8.8.8".parse().unwrap()],
-        ).unwrap();
+        let expect =
+            DoHResolver::build(0, None, Vec::new(), "dns.example.com", "/dns-query", vec![
+                "1.1.1.1".parse().unwrap(),
+                "8.8.8.8".parse().unwrap(),
+            ])
+            .unwrap();
 
         assert_eq!(
-            parse_stamp("sdns://AgAAAAAAAAAAAAAPZG5zLmV4YW1wbGUuY29tCi9kbnMtcXVlcnmHMS4xLjEuMQc4LjguOC44"),
+            parse_stamp(
+                "sdns://AgAAAAAAAAAAAAAPZG5zLmV4YW1wbGUuY29tCi9kbnMtcXVlcnmHMS4xLjEuMQc4LjguOC44"
+            ),
             Some(DnsResolver::DoH(expect))
         );
     }
@@ -616,14 +657,21 @@ mod tests {
     fn test_parse_dnscrypt_stamp_basic() {
         crate::init_tracing();
         let expect = DNScryptResolver::build(
-            /* props= */ 0b111,
-            /* hostname= */ "175.45.182.179",
-            /* pk= */ "daea841aedb59a3533482fcde8a63f4f22fdd80beaa981c5ee4478ff2527ed72",
-            /* provider_name= */ "2.dnscrypt-cert.dnscry.pt",
-        ).unwrap();
+            // props=
+            0b111,
+            // hostname=
+            "175.45.182.179",
+            // pk=
+            "daea841aedb59a3533482fcde8a63f4f22fdd80beaa981c5ee4478ff2527ed72",
+            // provider_name=
+            "2.dnscrypt-cert.dnscry.pt",
+        )
+        .unwrap();
 
         assert_eq!(
-            parse_stamp("sdns://AQcAAAAAAAAADjE3NS40NS4xODIuMTc5INrqhBrttZo1M0gvzeimP08i_dgL6qmBxe5EeP8lJ-1yGTIuZG5zY3J5cHQtY2VydC5kbnNjcnkucHQ"),
+            parse_stamp(
+                "sdns://AQcAAAAAAAAADjE3NS40NS4xODIuMTc5INrqhBrttZo1M0gvzeimP08i_dgL6qmBxe5EeP8lJ-1yGTIuZG5zY3J5cHQtY2VydC5kbnNjcnkucHQ"
+            ),
             Some(DnsResolver::DNScrypt(expect))
         );
     }
@@ -633,7 +681,9 @@ mod tests {
         crate::init_tracing();
 
         assert_eq!(
-            parse_stamp("sdns://AQcAAAAAAAAAEjE3NS40NS4xODIuMTc5OjQ0Mx_a6oQa7bWaM0gvzeimP08i_dgL6qmBxe5EeP8lJ-1yGTIuZG5zY3J5cHQtY2VydC5kbnNjcnkucHQ"),
+            parse_stamp(
+                "sdns://AQcAAAAAAAAAEjE3NS40NS4xODIuMTc5OjQ0Mx_a6oQa7bWaM0gvzeimP08i_dgL6qmBxe5EeP8lJ-1yGTIuZG5zY3J5cHQtY2VydC5kbnNjcnkucHQ"
+            ),
             None
         );
     }
@@ -643,14 +693,21 @@ mod tests {
         crate::init_tracing();
         // props=1 (DNSSEC), encoded little-endian: 01 00 00 00 00 00 00 00
         let expect = DNScryptResolver::build(
-            /* props= */ 0b001,
-            /* hostname= */ "175.45.182.179",
-            /* pk= */ "daea841aedb59a3533482fcde8a63f4f22fdd80beaa981c5ee4478ff2527ed72",
-            /* provider_name= */ "2.dnscrypt-cert.dnscry.pt",
-        ).unwrap();
+            // props=
+            0b001,
+            // hostname=
+            "175.45.182.179",
+            // pk=
+            "daea841aedb59a3533482fcde8a63f4f22fdd80beaa981c5ee4478ff2527ed72",
+            // provider_name=
+            "2.dnscrypt-cert.dnscry.pt",
+        )
+        .unwrap();
 
         assert_eq!(
-            parse_stamp("sdns://AQEAAAAAAAAADjE3NS40NS4xODIuMTc5INrqhBrttZo1M0gvzeimP08i_dgL6qmBxe5EeP8lJ-1yGTIuZG5zY3J5cHQtY2VydC5kbnNjcnkucHQ"),
+            parse_stamp(
+                "sdns://AQEAAAAAAAAADjE3NS40NS4xODIuMTc5INrqhBrttZo1M0gvzeimP08i_dgL6qmBxe5EeP8lJ-1yGTIuZG5zY3J5cHQtY2VydC5kbnNjcnkucHQ"
+            ),
             Some(DnsResolver::DNScrypt(expect))
         );
     }
@@ -659,18 +716,25 @@ mod tests {
     fn test_parse_dnscrypt_stamp_port() {
         crate::init_tracing();
         let expect = DNScryptResolver::build(
-            /* props= */ 0b111,    // 07 00 00 00 00 00 00 00
-            /* hostname= */ "175.45.182.179:443",
-            /* pk= */ "daea841aedb59a3533482fcde8a63f4f22fdd80beaa981c5ee4478ff2527ed72",
-            /* provider_name= */ "2.dnscrypt-cert.dnscry.pt",
-        ).unwrap();
+            // props=
+            0b111, // 07 00 00 00 00 00 00 00
+            // hostname=
+            "175.45.182.179:443",
+            // pk=
+            "daea841aedb59a3533482fcde8a63f4f22fdd80beaa981c5ee4478ff2527ed72",
+            // provider_name=
+            "2.dnscrypt-cert.dnscry.pt",
+        )
+        .unwrap();
 
         assert_eq!(
-            parse_stamp("sdns://AQcAAAAAAAAAEjE3NS40NS4xODIuMTc5OjQ0MyDa6oQa7bWaNTNIL83opj9PIv3YC-qpgcXuRHj_JSftchkyLmRuc2NyeXB0LWNlcnQuZG5zY3J5LnB0"),
+            parse_stamp(
+                "sdns://AQcAAAAAAAAAEjE3NS40NS4xODIuMTc5OjQ0MyDa6oQa7bWaNTNIL83opj9PIv3YC-qpgcXuRHj_JSftchkyLmRuc2NyeXB0LWNlcnQuZG5zY3J5LnB0"
+            ),
             Some(DnsResolver::DNScrypt(expect))
         );
     }
-    
+
     const DOH_STAMP_LIST: &[&str] = &[
         "sdns://AgAAAAAAAAAACTIyMy41LjUuNSCY49XlNq8pWM0vfxT3BO9KJ20l4zzWXy5l9eTycnwTMA0yMjMuNS41LjU6NDQzCi9kbnMtcXVlcnk",
         "sdns://AgAAAAAAAAAACTIyMy41LjUuNQANMjIzLjUuNS41OjQ0MwovZG5zLXF1ZXJ5",
@@ -685,28 +749,22 @@ mod tests {
         crate::init_tracing();
         for stamp in DOH_STAMP_LIST {
             debug!("Test stamp: {stamp}");
-            assert_eq!(
-                &parse_stamp(stamp).unwrap().encode(),
-                stamp
-            );
+            assert_eq!(&parse_stamp(stamp).unwrap().encode(), stamp);
         }
     }
-    
+
     const DNSCRYPT_STAMP_LIST: &[&str] = &[
         "sdns://AQcAAAAAAAAAEjE3NS40NS4xODIuMTc5OjQ0MyDa6oQa7bWaNTNIL83opj9PIv3YC-qpgcXuRHj_JSftchkyLmRuc2NyeXB0LWNlcnQuZG5zY3J5LnB0",
         "sdns://AQEAAAAAAAAAEjE3NS40NS4xODIuMTc5OjQ0MyDa6oQa7bWaNTNIL83opj9PIv3YC-qpgcXuRHj_JSftchkyLmRuc2NyeXB0LWNlcnQuZG5zY3J5LnB0",
         "sdns://AQcAAAAAAAAAEjE3NS40NS4xODIuMTc5OjQ0MyDa6oQa7bWaNTNIL83opj9PIv3YC-qpgcXuRHj_JSftchkyLmRuc2NyeXB0LWNlcnQuZG5zY3J5LnB0",
     ];
-    
+
     #[test]
     fn test_encode_dnscrypt_stamp() {
         crate::init_tracing();
         for stamp in DNSCRYPT_STAMP_LIST {
             debug!("Test stamp: {stamp}");
-            assert_eq!(
-                &parse_stamp(stamp).unwrap().encode(),
-                stamp
-            );
+            assert_eq!(&parse_stamp(stamp).unwrap().encode(), stamp);
         }
     }
 }
