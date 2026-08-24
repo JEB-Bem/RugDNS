@@ -1,4 +1,4 @@
-use crate::{config::Config, dnstamp::{self, DnsResolver}};
+use crate::{config::Config, dnstamp::{self, DnsResolver, DoHResolver, DNScryptResolver}};
 use hickory_client::client::{DnssecClient, Client};
 use hickory_proto::{
     h2::{HttpsClientStream, HttpsClientStreamBuilder},
@@ -33,10 +33,16 @@ struct State {
     score: u32,
 }
 
+// TODO: maybe we need a lock to protect the ordered score list
 pub struct RugDnsResolver {
     config: Arc<RwLock<Config>>,
     state: RwLock<State>,
     options: DnsRequestOptions,
+}
+
+enum NetOp {
+    Retry,
+    Break,
 }
 
 impl DnsHandle for RugClient {
@@ -196,34 +202,83 @@ impl RugDnsResolver {
     async fn lookup(&self, query: Query) -> Result<DnsResponse, ProtoError> {
         debug!("Received query: {query:?}");
         self.reconn_if_unhealthy().await;
+        // TODO: Find out if the activation of edns takes effect when sending
+        // messages. We'll leave this feature alone for now.
+        if tracing::enabled!(tracing::Level::DEBUG) {
+            let t = self.state.read().await.client.is_using_edns();
+            debug!("Is using EDNS: {}", t);
+        }
         self.state.read().await.client.lookup(query, self.options).first_answer().await
     }
     
     /// A *classic* DNS query
+    // TODO?: If we need to modify the client, we may need a larger critical
+    // section protected by the RwLock.
     pub async fn resolve(&self, query: Query) -> Result<DnsResponse, ProtoError> {
         let seconds = self.config.read().await.timeout_s / 5 * 3;
             
         // TODO: Retry with customed times
+        // TODO: Skip in non-proxy mode or for targets in the direct resolution
+        // list.
+        // Try proxy servers
         for _ in 0..3 {
             match if seconds == 0 {
+                // No limit.
                 self.lookup(query.clone()).await
             } else {
                 let t = Duration::from_secs(seconds as u64);
-                time::timeout(t, self.lookup(query.clone())).await.expect("lookup")
+                if let Ok(value) = time::timeout(
+                    t, self.lookup(query.clone())
+                ).await { value }
+                else { continue; } // Retry.
             } {
                 Ok(resp) => return Ok(resp),
-                Err(err) => self.handle_err(err).await?,
+                // if lookup return a network error, retry or fallback.
+                // if lookup return a dns error, return.
+                Err(err) => match self.handle_err(err).await {
+                    Ok(NetOp::Break) => break,
+                    Ok(NetOp::Retry) => {},
+                    Err(err) => {
+                        // TODO: If DO flag didn't set, Nsec Error could be
+                        // ignored.
+                        return Err(err);
+                    }
+                }
             };
         }
+        
+        // Try direct servers
+
+        // Try default servers
+        
+        // Try DHCP servers
         unimplemented!()
     }
     
-    async fn handle_err(&self, err: ProtoError) -> Result<(), ProtoError> {
+    async fn handle_err(&self, err: ProtoError) -> Result<NetOp, ProtoError> {
+        warn!("Client Lookup Error: {err}");
         match err.kind.deref() {
-            ProtoErrorKind::BadQueryCount(_) => return Err(err.into()),
-            _ => self.reconn_doh().await,
+            // Errors requiring special handling. => Retry
+            ProtoErrorKind::Busy => {
+                tokio::time::sleep(Duration::from_millis(1500)).await;
+                self.reconn_doh().await;
+            },
+            // Break on unexpected errors => Fallback
+            ProtoErrorKind::DnsKeyProtocolNot3(_)
+            | ProtoErrorKind::RustlsError(_) => return Ok(NetOp::Break),
+            // Try handle these errors by reconnecting to upstream. => Retry
+            ProtoErrorKind::Canceled(_)
+            | ProtoErrorKind::Message(_)
+            | ProtoErrorKind::Msg(_)
+            | ProtoErrorKind::NoConnections
+            | ProtoErrorKind::Io(_)
+            | ProtoErrorKind::RequestRefused => self.reconn_doh().await,
+            // Errors caused by external callers should be propagated unchanged.
+            _ => {
+                return Err(err);
+            }
         };
-        Ok(())
+        Ok(NetOp::Retry)
     }
 }
 
@@ -244,7 +299,7 @@ mod tests {
 
         (domain, lines.next().unwrap().into(), lines.next().unwrap().into())
     }
-    
+     
     #[tokio::test]
     async fn test_lookup_a() {
         crate::init_tracing();

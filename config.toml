@@ -11,7 +11,8 @@
 ###############################################################################
 bind = "127.0.0.1"
 port = 8553
-timeout_s = 5   # [0, 256) seconds, 0 means no limit.
+timeout_s = 5         # [0, 256) seconds, 0 means no limit.
+max_retries = 3       # Maximum number of retries after an error.
 
 # Resovler Server Names
 # ****************************************************************
@@ -36,6 +37,7 @@ direct_servers = [
 ]
 
 # Use plain TCP/UDP protocol. DNSSEC is disabled unless you define a custom
+# These servers are used to parse the domain of proxy_servers, direct_servers and queries.
 # DNS Stamp below. (eg. google-plain)
 # Only `default_servers` accepts plain IP addresses such as '8.8.8.8'.
 default_servers = ['223.5.5.5', '8.8.8.8', 'google-plain']
