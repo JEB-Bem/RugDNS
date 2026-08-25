@@ -11,8 +11,11 @@
 ###############################################################################
 bind = "127.0.0.1"
 port = 8553
-timeout_s = 5         # [0, 256) seconds, 0 means no limit.
-max_retries = 3       # Maximum number of retries after an error.
+# [0, 256) seconds, 0 means no limit(some task actually will be set to 60s).
+timeout_s = 5         
+# Number of parallel resolutions per stage. For example, 3 means sending
+# 3 queries to different servers in parallel.
+para_num = 3
 
 # Resovler Server Names
 # ****************************************************************
@@ -29,8 +32,8 @@ max_retries = 3       # Maximum number of retries after an error.
 
 # The default config works well during the development process in China. :)
 
-#                DNSCrypt       DNSCrypt       DoH       DoH       DoH
-proxy_servers = ['scaleway-fr', 'adguard-dns', 'google', 'yandex', 'cloudflare']
+#                DoH           DoH       DoH       DoH
+proxy_servers = ['alidns-doh', 'google', 'yandex', 'cloudflare']
 
 direct_servers = [
     "alidns-doh"

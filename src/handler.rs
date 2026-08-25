@@ -14,12 +14,12 @@ use tracing::{debug, error, info, warn};
 use crate::{config::Config, resolver::RugDnsResolver};
 
 pub struct RugDnsHandler {
-    config:   Arc<Config>,
+    config:   Config,
     resolver: RugDnsResolver,
 }
 
 impl RugDnsHandler {
-    pub fn new(config: Arc<Config>, resolver: RugDnsResolver) -> Self { Self { config, resolver } }
+    pub fn new(config: Config, resolver: RugDnsResolver) -> Self { Self { config, resolver } }
 }
 
 #[async_trait::async_trait]

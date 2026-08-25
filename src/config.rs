@@ -11,6 +11,7 @@ pub struct Config {
     pub bind:            IpAddr,
     pub port:            u16,
     pub timeout_s:       u8,
+    pub para_num:        u8,
     pub proxy_servers:   Vec<String>,
     pub direct_servers:  Vec<String>,
     pub default_servers: Vec<String>,
@@ -30,6 +31,7 @@ impl Default for Config {
             bind:            "127.0.0.1".parse().unwrap(),
             port:            8553,
             timeout_s:       5,
+            para_num:        3,
             proxy_servers:   Vec::default(),
             direct_servers:  Vec::default(),
             default_servers: Vec::default(),
@@ -147,7 +149,7 @@ fn find_config() -> Option<&'static str> {
 }
 
 /// Read Configuration File, then initialize the public resolvers configurations
-pub async fn init_config(path: Option<&str>) -> Arc<Config> {
+pub async fn init_config(path: Option<&str>) -> Config {
     // Read Configuration
     let path = if let Some(path) = path {
         path
@@ -183,7 +185,7 @@ pub async fn init_config(path: Option<&str>) -> Arc<Config> {
         panic!("each server list should have at least one server.");
     }
 
-    Arc::new(config)
+    config
 }
 
 #[cfg(test)]

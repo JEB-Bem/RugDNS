@@ -1,12 +1,15 @@
-use rugdns::{config::{self, Config, Sources}, dnstamp::{DNScryptResolver, DnsResolver, DoHResolver, StampConvert}, resolver::RugDnsResolver};
-use hickory_proto::{op::Query, rr::RecordType};
-use tokio::sync::RwLock;
 use std::{collections::HashMap, sync::Arc};
+
+use hickory_proto::{op::Query, rr::RecordType};
+use rugdns::{
+    config::{self, Config, Sources},
+    dnstamp::{DNScryptResolver, DnsResolver, DoHResolver, StampConvert},
+    resolver::RugDnsResolver,
+};
+use tokio::sync::RwLock;
 use tracing::debug;
 
-fn build_ip_query(domain: &str) -> Query {
-    Query::query(domain.parse().unwrap(), RecordType::A)
-}
+fn build_ip_query(domain: &str) -> Query { Query::query(domain.parse().unwrap(), RecordType::A) }
 
 fn test_config() -> Config {
     let mut servers = HashMap::new();
@@ -26,7 +29,7 @@ fn test_config() -> Config {
 
     Config {
         bind: "127.0.0.1".parse().unwrap(),
-        port: 8553,    // 这个端口才多个测试并行时可能被占用
+        port: 8553, // 这个端口才多个测试并行时可能被占用
         timeout_s: 5,
         sources,
         ..Default::default()
@@ -41,13 +44,14 @@ async fn with_bad_dnssec_resovler_and_config() {
     // alidns-doh do not support DNSSEC, so the following config is broken.
     // Resolving should fallback.
     let server = DoHResolver::build(
-        0x1,  // DNSSEC
+        0x1, // DNSSEC
         Some("223.5.5.5".parse().unwrap()),
         Vec::new(),
         "223.5.5.5:443",
         "/dns-query",
-        Vec::new()
-    ).unwrap();
+        Vec::new(),
+    )
+    .unwrap();
 
     let name = "alidns-doh".to_owned();
     let stamp = server.encode();
@@ -61,9 +65,9 @@ async fn with_bad_dnssec_resovler_and_config() {
         servers.insert(name, vec![stamp]);
     }
 
-    let resolver = RugDnsResolver::init(Arc::new(RwLock::new(config))).await;
+    let resolver = RugDnsResolver::init(&config).await;
     let query = build_ip_query(bad_doamin);
     match resolver.resolve(query).await {
-        _ => debug!("Test end.")
+        _ => debug!("Test end."),
     };
 }

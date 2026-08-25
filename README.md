@@ -93,11 +93,11 @@
 - [x] (Resolver) Re-establish HTTP2 connection.
     - [ ] Add test.
 - [x] (Handler/Resolver) Timeout machanism.
-    - [ ] Add test.
+    - [x] Add test.
 - [ ] (Resolver) Support udp, tcp, DNScrypt(with/without proxy) and https(with/without proxy).
-- [ ] (Resolver) Customed resolvers.
+- [x] (Resolver) Customed resolvers.
 - [ ] (Resolver) Selection and Fallback machanism.
-- [ ] (Handler) Handle resolver error.
+- [x] (Handler) Handle resolver error.
 - [ ] (Handler) DNS Cache.
 - [ ] (Resolver) Fallback DoH to DNScrypt if have a network error.
 - [ ] (Resolver) If a domain didn't hit the GeoSite list, lookup its ns domain in a new task as a auxiliary reference.

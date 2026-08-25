@@ -20,7 +20,7 @@ async fn main() {
     info!("Bind on {}", host_port);
 
     let resolver = RugDnsResolver::init(&config).await;
-    let handler = RugDnsHandler::new(config.clone(), resolver);
+    let handler = RugDnsHandler::new(config, resolver);
     let mut server = ServerFuture::new(handler);
 
     server.register_socket(socket);

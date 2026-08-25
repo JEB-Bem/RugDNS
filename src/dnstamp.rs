@@ -4,17 +4,21 @@ use anyhow::Result;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use data_encoding::HEXLOWER;
 use regex::regex;
-use tracing::{debug, info};
+use tracing::debug;
+
+use crate::dnstamp::DnsResolver::Plain;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ProtocolIdentifier {
+    Plain    = 0x00,
     DNScrypt = 0x01,
     DoH      = 0x02,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DnsResolver {
+    Plain(PlainResolver),
     DoH(DoHResolver),
     DNScrypt(DNScryptResolver),
 }
@@ -25,7 +29,7 @@ pub enum Host {
     Domain(String),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DNScryptResolver {
     props:         u64,
     addr:          IpAddr,
@@ -43,6 +47,13 @@ pub struct DoHResolver {
     port:       u16,
     path:       String,
     bootstraps: Vec<IpAddr>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct PlainResolver {
+    props: u64,
+    addr:  IpAddr,
+    port:  u16,
 }
 
 pub trait StampConvert {
@@ -68,7 +79,7 @@ pub fn validate_path(path: &str) -> bool {
     regex!(r"^\/(([A-z0-9\-\%]+\/)*[A-z0-9\-\%]+$)?$").is_match(path)
 }
 
-fn split_hostname<'a>(hostname: &'a str) -> Option<(Host, u16)> {
+pub fn split_hostname<'a>(hostname: &'a str) -> Option<(Host, u16)> {
     let host: &str;
     let port: u16;
     match hostname.find(':') {
@@ -156,6 +167,55 @@ impl fmt::Display for Host {
     }
 }
 
+impl StampConvert for PlainResolver {
+    fn parse_from_bytes(mut bytes: &[u8]) -> Option<DnsResolver> {
+        let props = u64::from_le_bytes(bytes.get(..8)?.try_into().ok()?);
+        bytes = bytes.get(8..)?;
+
+        // addr[:port]: LP(string)
+        let hostname_len = u8::from_be_bytes(bytes.get(..1)?.try_into().ok()?) as usize;
+        bytes = bytes.get(1..)?;
+        let mut hostname = "";
+        if hostname_len == 0 {
+            return None;
+        }
+        hostname = str::from_utf8(bytes.get(..hostname_len)?).ok()?;
+        bytes = bytes.get(hostname_len..)?;
+
+        let (host, port) = split_hostname(hostname).unwrap();
+        let addr = match host {
+            Host::Domain(_) => panic!("addr of a plain dns stamp should be ipv4 or ipv6"),
+            Host::Ip(ip) => ip,
+        };
+        Some(DnsResolver::Plain(Self::build(props, addr, port).unwrap()))
+    }
+
+    fn encode(&self) -> String {
+        let mut bytes = vec![ProtocolIdentifier::DNScrypt as u8];
+        // props
+        bytes.extend_from_slice(&self.props.to_le_bytes());
+        // LP(addr[:port])
+        bytes.extend(lp_str(&format!("{}:{}", self.addr, self.port)));
+
+        format!("sdns://{}", URL_SAFE_NO_PAD.encode(bytes))
+    }
+}
+
+impl PlainResolver {
+    pub fn build(props: u64, addr: IpAddr, port: u16) -> Option<Self> {
+        if props > 7 {
+            return None;
+        }
+        Some(Self { props, addr, port })
+    }
+
+    pub fn props(&self) -> u64 { self.props }
+
+    pub fn addr(&self) -> &IpAddr { &self.addr }
+
+    pub fn port(&self) -> u16 { self.port }
+}
+
 impl DNScryptResolver {
     pub fn build(props: u64, hostname: &str, pk: &str, provider_name: &str) -> Option<Self> {
         let (host, port) = split_hostname(hostname)?;
@@ -224,7 +284,7 @@ impl StampConvert for DNScryptResolver {
 
     fn encode(&self) -> String {
         // protocol identifier
-        let mut bytes = vec![0x01u8];
+        let mut bytes = vec![ProtocolIdentifier::DNScrypt as u8];
         // props
         bytes.extend_from_slice(&self.props.to_le_bytes());
         // LP(addr[:port])
@@ -235,18 +295,6 @@ impl StampConvert for DNScryptResolver {
         bytes.extend(lp_str(&self.provider_name));
 
         format!("sdns://{}", URL_SAFE_NO_PAD.encode(bytes))
-    }
-}
-
-pub fn parse_stamp(mut b64_str: &str) -> Option<DnsResolver> {
-    b64_str = b64_str.get((b64_str.trim_matches('=').find("sdns://")? + 7)..)?;
-    let bytes = URL_SAFE_NO_PAD.decode(b64_str).expect("parse dns stamp");
-    match bytes[0] {
-        v if v == ProtocolIdentifier::DNScrypt as u8 => {
-            DNScryptResolver::parse_from_bytes(&bytes[1..])
-        }
-        v if v == ProtocolIdentifier::DoH as u8 => DoHResolver::parse_from_bytes(&bytes[1..]),
-        _ => panic!("unexpected protocol identifier"),
     }
 }
 
@@ -397,7 +445,7 @@ impl StampConvert for DoHResolver {
 
     fn encode(&self) -> String {
         // protocol identifier
-        let mut bytes = vec![0x02u8];
+        let mut bytes = vec![ProtocolIdentifier::DoH as u8];
         // props
         bytes.extend_from_slice(&self.props.to_le_bytes());
         // LP(addr)
@@ -426,9 +474,31 @@ impl StampConvert for DoHResolver {
 impl DnsResolver {
     pub fn encode(&self) -> String {
         match self {
+            DnsResolver::Plain(t) => t.encode(),
             DnsResolver::DNScrypt(t) => t.encode(),
             DnsResolver::DoH(t) => t.encode(),
         }
+    }
+
+    pub fn props(&self) -> u64 {
+        match self {
+            DnsResolver::Plain(t) => t.props(),
+            DnsResolver::DNScrypt(t) => t.props(),
+            DnsResolver::DoH(t) => t.props(),
+        }
+    }
+}
+
+pub fn parse_stamp(mut b64_str: &str) -> Option<DnsResolver> {
+    b64_str = b64_str.get((b64_str.trim_matches('=').find("sdns://")? + 7)..)?;
+    let bytes = URL_SAFE_NO_PAD.decode(b64_str).expect("parse dns stamp");
+    match bytes[0] {
+        v if v == ProtocolIdentifier::Plain as u8 => PlainResolver::parse_from_bytes(&bytes[1..]),
+        v if v == ProtocolIdentifier::DNScrypt as u8 => {
+            DNScryptResolver::parse_from_bytes(&bytes[1..])
+        }
+        v if v == ProtocolIdentifier::DoH as u8 => DoHResolver::parse_from_bytes(&bytes[1..]),
+        _ => panic!("unexpected protocol identifier"),
     }
 }
 
