@@ -389,7 +389,6 @@ impl Resolvers {
         let mut states = states.write().await;
         let ind = states.len();
         clients.insert(Item { score, ind });
-        // FIXME: If time out at this line?
         states.push(RwLock::new(state));
     }
 
@@ -621,7 +620,9 @@ impl RugDnsResolver {
             Ok(value) => return value,
             Err(err) => error!("Proxy resolvers: {err}"),
         }
-        // TODO?: A separate DNSCrypt resolvers to resolver a oversea domain without proxy
+        // TODO?: A separate resolvers to resolver a oversea domain without proxy.
+        // eg. yandex
+
         // Try direct servers
         match self.direct_resolvers.resolve(query.clone(), self.timeout, self.para_num).await {
             Ok(value) => return value,
