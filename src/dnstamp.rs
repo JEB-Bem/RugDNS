@@ -728,12 +728,12 @@ mod tests {
         crate::init_tracing();
         // Bracketed IPv6 in the hostname field.
         let expect = DnsResolver::DoH(DoHResolver {
-            props: 0,
-            addr: None,
-            hashi: Vec::new(),
-            host: Host::Ip("fe80::6d6d:f72c:3ad:60b8".parse().unwrap()),
-            port: 443,
-            path: "/dns-query".into(),
+            props:      0,
+            addr:       None,
+            hashi:      Vec::new(),
+            host:       Host::Ip("fe80::6d6d:f72c:3ad:60b8".parse().unwrap()),
+            port:       443,
+            path:       "/dns-query".into(),
             bootstraps: Vec::new(),
         });
 
@@ -750,12 +750,12 @@ mod tests {
         crate::init_tracing();
         // Bracketed IPv6 in the addr field (hostname stays a domain).
         let expect = DnsResolver::DoH(DoHResolver {
-            props: 0,
-            addr: Some("fe80::6d6d:f72c:3ad:60b8".parse().unwrap()),
-            hashi: Vec::new(),
-            host: Host::Domain("dns.example.com".into()),
-            port: 443,
-            path: "/dns-query".into(),
+            props:      0,
+            addr:       Some("fe80::6d6d:f72c:3ad:60b8".parse().unwrap()),
+            hashi:      Vec::new(),
+            host:       Host::Domain("dns.example.com".into()),
+            port:       443,
+            path:       "/dns-query".into(),
             bootstraps: Vec::new(),
         });
 
@@ -854,10 +854,11 @@ mod tests {
         crate::init_tracing();
         // IPv6 addr is bracketed per the spec, e.g. [fe80::...]:443.
         let expect = DNScryptResolver {
-            props: 0,
-            addr: "fe80::6d6d:f72c:3ad:60b8".parse().unwrap(),
-            port: 443,
-            pk: "daea841aedb59a3533482fcde8a63f4f22fdd80beaa981c5ee4478ff2527ed72".into(),
+            props:         0,
+            addr:          "fe80::6d6d:f72c:3ad:60b8".parse().unwrap(),
+            port:          443,
+            pk:            "daea841aedb59a3533482fcde8a63f4f22fdd80beaa981c5ee4478ff2527ed72"
+                .into(),
             provider_name: "2.dnscrypt-cert.dnscry.pt".into(),
         };
 
