@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeSet, HashMap},
+    io::ErrorKind::AddrNotAvailable,
     net::SocketAddr,
     ops::Deref,
     pin::Pin,
@@ -19,6 +20,7 @@ use hickory_proto::{
     udp::UdpClientStream,
     xfer::{DnsHandle, DnsRequest, DnsRequestOptions, DnsRequestSender, DnsResponse, FirstAnswer},
 };
+use rand;
 use tokio::{
     sync::RwLock,
     task::JoinHandle,
@@ -45,6 +47,8 @@ struct State {
     bg_handle: JoinHandle<Result<(), ProtoError>>,
     resolver:  DnsResolver,
     health:    bool,
+    // to locate the Item
+    score:     u32,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
@@ -73,11 +77,6 @@ pub struct RugDnsResolver {
     dhcp_resolvers:    Resolvers,
     timeout:           Duration,
     para_num:          u8,
-}
-
-enum NetOp {
-    Retry,
-    Break,
 }
 
 impl DnsHandle for RugClient {
@@ -129,23 +128,21 @@ impl Resolvers {
         servers: &Option<HashMap<String, Vec<String>>>,
         mut timeout: Duration,
     ) -> Self {
-        /*
-         * - A item in `server_names` can be either an IP such us '223.5.5.5'
-         *   or a server name defined in the server souces list, such as 'google'.
-         * - There is a simple sketch below. 'timeout' means this task would be executed by
-         *   `time::timeout`
-         *                                                               
-         *                   ┌───►223.5.5.5                              
-         *                   │   timeout     ┌──────►dns_stamp1(timeout) 
-         *                   │               │                           
-         * server_names──────┼───►google─────┼──────►dns_stamp2(timeout) 
-         *                   │   timeout     │                           
-         *                   │               └──────►dns_stamp3(timeout) 
-         *                   └───►alidns-doh─────┐                       
-         *                       timeout         │                       
-         *                                       └────► ...              
-         *                                                               
-         */
+        // - A item in `server_names` can be either an IP such us '223.5.5.5' or a server name
+        //   defined in the server souces list, such as 'google'.
+        // - There is a simple sketch below. 'timeout' means this task would be executed by
+        //   `time::timeout` with argument `timeout`
+        //
+        //                   ┌───►223.5.5.5
+        //                   │   timeout     ┌──────►dns_stamp1(timeout)
+        //                   │               │
+        // server_names──────┼───►google─────┼──────►dns_stamp2(timeout)
+        //                   │   timeout     │
+        //                   │               └──────►dns_stamp3(timeout)
+        //                   └───►alidns-doh─────┐
+        //                       timeout         │
+        //                                       └────► ...
+        //
         // Add a lock so we can initialize all DNS stamps concurrently.
         let states = Arc::new(RwLock::new(Vec::new()));
         let rank = Arc::new(Rank::default());
@@ -159,7 +156,8 @@ impl Resolvers {
                 timeout,
                 Self::add_server_states(name, servers, states.clone(), rank.clone(), timeout),
             )
-        })).await;
+        }))
+        .await;
 
         // Remove the lock.
         let rwlock = Arc::into_inner(states).unwrap();
@@ -179,46 +177,137 @@ impl Resolvers {
         timeout: Duration,
         para_num: u8,
     ) -> Result<Result<DnsResponse, ProtoError>> {
-        let t = timeout / (para_num as u32 * 2);
+        // TODO: do more about the result
+        debug!("Resolving {:?}", query);
+        let (sec_res, res) = tokio::join!(
+            self.clients_resolve(query.clone(), timeout, para_num, &self.rank.dnseclients),
+            self.clients_resolve(query.clone(), timeout, para_num, &self.rank.clients),
+        );
 
-        // TODO: Retry with customed times
-        // TODO: Skip in non-proxy mode or for targets in the direct resolution
-        // list.
-        // Try proxy servers
-        // TODO: Implement it in parallel
-        // FIXME: states.len == 0 or states.len < para_num
-        let top: Vec<Item> =
-            self.rank.clients.read().await.iter().rev().take(para_num as usize).copied().collect();
-        for i in 0..para_num {
-            // TODO: use try_read so we can try anther server
-            let state = self.states[top[i as usize].ind].read().await;
-            match if timeout.is_zero() {
-                // No limit.
-                state.lookup(query.clone()).await
-            } else {
-                if let Ok(value) = time::timeout(t, state.lookup(query.clone())).await {
-                    value
+        if let Ok(res) = sec_res {
+            Ok(res)
+        } else if let Ok(res) = res {
+            // TODO: need more argument to handle the DNSSEC options.
+            Ok(res)
+        } else {
+            bail!("all resoling tasks failed");
+        }
+    }
+
+    pub async fn clients_resolve(
+        &self,
+        query: Query,
+        timeout: Duration,
+        para_num: u8,
+        clients: &RwLock<BTreeSet<Item>>,
+    ) -> Result<Result<DnsResponse, ProtoError>> {
+        assert!(para_num > 0);
+
+        if self.states.len() == 0 {
+            info!("No resolver in the Resolvers, skipping...");
+            bail!("No resolver in the Resolvers");
+        }
+        let availables = Arc::new(RwLock::new(Self::get_available(clients, para_num).await));
+        let results = join_all((0..para_num).map(|task_id| {
+            let availables = availables.clone();
+            let query = query.clone();
+            async move {
+                debug!("#{task_id} task begin");
+                let ind = if let Some(ind) = self.take_healthy_available(availables).await {
+                    ind
                 } else {
-                    continue; // Retry.
-                }
-            } {
-                Ok(resp) => return Ok(Ok(resp)),
-                // if lookup return a network error, retry or fallback.
-                // if lookup return a dns error, return.
-                Err(err) => {
-                    match self.handle_err(err, top[i as usize].ind, top[i as usize].score).await {
-                        Ok(NetOp::Break) => break,
-                        Ok(NetOp::Retry) => {}
-                        Err(err) => {
-                            // TODO: If DO flag didn't set, Nsec Error could be
-                            // ignored.
-                            return Ok(Err(err));
+                    bail!("no available resolver");
+                };
+                let state = self.states[ind].write().await;
+                let dnssec_tag =
+                    if state.resolver.props() & 0x01 == 0x01 { "DNSSEC" } else { "NON-DNSSEC" };
+
+                debug!("#{dnssec_tag}{task_id} Resovling with {:?}", state.resolver);
+                match if timeout.is_zero() {
+                    // No limit.
+                    let resp = state.lookup(query.clone()).await;
+                    drop(state); // release the write lock.
+                    resp
+                } else {
+                    let resp = if let Ok(value) =
+                        time::timeout(timeout, state.lookup(query.clone())).await
+                    {
+                        value
+                    } else {
+                        // Time out.
+                        debug!(
+                            "#{dnssec_tag}{task_id} Timeout while resolving with {:?}",
+                            state.resolver
+                        );
+                        bail!("resolver lookup timed out.");
+                    };
+                    drop(state); // release the write lock.
+                    resp
+                } {
+                    Ok(resp) => {
+                        debug!("#{dnssec_tag}{task_id} Result: {resp:?}");
+                        self.update_score(ind, true).await;
+                        debug!("#{dnssec_tag}{task_id} Score updated.");
+                        return Ok(Ok(resp));
+                    }
+                    Err(err) => {
+                        // TODO: If DO flag didn't set, Nsec Error could be
+                        // ignored.
+                        debug!("#{dnssec_tag}{task_id} Got Error: {err}");
+                        match self.handle_err(err, ind, timeout).await {
+                            Ok(err) => Ok(Err(err)),
+                            Err(err) => Err(err),
                         }
                     }
                 }
-            };
+            }
+        }))
+        .await;
+
+        for res in results {
+            if let Ok(resp) = res {
+                debug!("One group got result: {resp:?}");
+                return Ok(resp);
+            }
         }
-        bail!("all lookuping tasks are failed or skipped")
+
+        bail!("all lookuping tasks are failed or skipped");
+    }
+
+    async fn get_available(clients: &RwLock<BTreeSet<Item>>, para_num: u8) -> Vec<usize> {
+        let clients = clients.read().await;
+        let mut inds = Vec::with_capacity(para_num as usize);
+        for item in clients.iter().rev() {
+            if item.score < 1000 && inds.len() >= para_num as usize {
+                break;
+            }
+            inds.push(item.ind);
+        }
+        inds
+    }
+
+    async fn take_healthy_available(&self, availables: Arc<RwLock<Vec<usize>>>) -> Option<usize> {
+        loop {
+            let ind = {
+                let mut availables = availables.write().await;
+                let len = availables.len();
+                if len == 0 {
+                    return None;
+                }
+                let i = rand::random_range(0..len);
+                availables.swap_remove(i)
+            };
+            if let Some(state) = self.states.get(ind) {
+                if state.read().await.health {
+                    return Some(ind);
+                } else {
+                    continue;
+                }
+            } else {
+                error!("Unexpected `index out of boundary` error.");
+                return None;
+            }
+        }
     }
 
     async fn add_server_states(
@@ -269,7 +358,8 @@ impl Resolvers {
         states: Arc<RwLock<Vec<RwLock<State>>>>,
         rank: Arc<Rank>,
     ) {
-        let state = match Self::new_state(resolver).await {
+        let score = 1000;
+        let state = match Self::new_state(resolver, score).await {
             Ok(v) => v,
             Err(err) => {
                 warn!("Create a resolver: {err}");
@@ -277,14 +367,14 @@ impl Resolvers {
             }
         };
 
-        // Acquire locks in the same order as in `reconn()`.
         let mut clients = match state.client {
             RugClient::Client(_) => rank.clients.write().await,
             RugClient::SecClient(_) => rank.dnseclients.write().await,
         };
         let mut states = states.write().await;
         let ind = states.len();
-        clients.insert(Item { score: 1000, ind });
+        clients.insert(Item { score, ind });
+        // FIXME: If time out at this line?
         states.push(RwLock::new(state));
     }
 
@@ -292,82 +382,129 @@ impl Resolvers {
         &self,
         err: ProtoError,
         ind: usize,
-        score: u32,
-    ) -> Result<NetOp, ProtoError> {
+        timeout: Duration,
+    ) -> Result<ProtoError> {
         warn!("Client Lookup Error: {err}");
         match err.kind.deref() {
-            // Errors requiring special handling. => Retry
             ProtoErrorKind::Busy => {
                 tokio::time::sleep(Duration::from_millis(1500)).await;
-                self.reconn(ind, score).await;
+                self.reconn(ind, timeout).await;
+                bail!("Network busy, task failed");
             }
-            // Break on unexpected errors => Fallback
             ProtoErrorKind::DnsKeyProtocolNot3(_) | ProtoErrorKind::RustlsError(_) => {
-                return Ok(NetOp::Break);
+                self.update_score(ind, false).await;
+                bail!("Unexpected errors, task failed");
             }
-            // Try handle these errors by reconnecting to upstream. => Retry
+            // Try handle these errors by reconnecting to upstream. => Reconn
             ProtoErrorKind::Canceled(_)
             | ProtoErrorKind::Message(_)
             | ProtoErrorKind::Msg(_)
             | ProtoErrorKind::NoConnections
             | ProtoErrorKind::Io(_)
-            | ProtoErrorKind::RequestRefused => self.reconn(ind, score).await,
+            | ProtoErrorKind::RequestRefused => {
+                self.reconn(ind, timeout).await;
+                bail!("Upstream Error, task failed.");
+            }
             // Errors caused by external callers should be propagated unchanged.
             _ => {
-                return Err(err);
+                self.update_score(ind, true).await;
+                return Ok(err);
             }
         };
-        Ok(NetOp::Retry)
     }
 
-    async fn reconn(&self, ind: usize, mut score: u32) {
+    async fn reconn(&self, ind: usize, timeout: Duration) {
         let state = &self.states[ind];
-        // Acquire locks in the same order as in `add_state_with_resolver()`.
+        // Prevent other tasks from blocking?
+        let (resolver, score, new_score) = {
+            let mut state = state.write().await;
+            state.health = false;
+            let score = state.score;
+            let new_score = if score < 100 { 0 } else { score - 100 };
+            state.score = new_score;
+            (state.resolver.clone(), score, new_score)
+        };
+        let resolver_debug = format!("{:?}", resolver);
+        debug!("Reconnect with {resolver_debug}");
+
         let mut clients_rank = match state.read().await.client {
             RugClient::Client(_) => self.rank.clients.write().await,
             RugClient::SecClient(_) => self.rank.dnseclients.write().await,
         };
         clients_rank.remove(&Item { score, ind });
-        score = if score < 100 { 0 } else { score - 100 };
-        clients_rank.insert(Item { score, ind });
+        clients_rank.insert(Item { score: new_score, ind });
 
-        let mut state = state.write().await;
-        let resolver = state.resolver.clone();
-        match Self::new_state(resolver).await {
-            Ok(v) => {
-                let State { client, bg_handle, .. } = v;
-                state.client = client;
-                state.bg_handle = bg_handle;
-            }
-            Err(err) => {
-                error!("Reconnect with {:?}: {err}", state.resolver);
-                state.health = false;
-            }
+        match time::timeout(timeout, Self::new_state(resolver, score)).await {
+            Ok(v) => match v {
+                Ok(v) => {
+                    let State { client, bg_handle, .. } = v;
+                    let mut state = state.write().await;
+                    state.client = client;
+                    state.bg_handle = bg_handle;
+                    state.health = true;
+                }
+                Err(err) => {
+                    error!("Reconnect with {resolver_debug}: {err}");
+                }
+            },
+            Err(err) => error!("Reconnect with {resolver_debug}: {err}"),
         };
     }
 
-    async fn new_state(resolver: DnsResolver) -> Result<State> {
+    // Note: The score is also updated in `reconn`.
+    async fn update_score(&self, ind: usize, success: bool) {
+        let state = &self.states[ind];
+        let (score, new_score) = if success {
+            debug!("Success! Updating score...");
+            debug!("Acquiring write lock of states[{ind}]");
+            let mut state = state.write().await;
+            let score = state.score;
+            let new_score = if score < 1000 { 1000 } else { score + 100 };
+            state.score = new_score;
+            (score, new_score)
+        } else {
+            debug!("Failed. Updating score...");
+            debug!("Acquiring write lock of states[{ind}]");
+            let mut state = state.write().await;
+            let score = state.score;
+            let new_score = if score < 100 { 0 } else { score - 100 };
+            state.score = new_score;
+            (score, new_score)
+        };
+
+        // Acquire locks in the same order as in `add_state_with_resolver()`.
+        debug!("Acquiring read lock of clients_rank({score}, {ind})");
+        let mut clients_rank = match state.read().await.client {
+            RugClient::Client(_) => self.rank.clients.write().await,
+            RugClient::SecClient(_) => self.rank.dnseclients.write().await,
+        };
+        clients_rank.remove(&Item { score, ind });
+        clients_rank.insert(Item { score: new_score, ind });
+        debug!("Updated score.");
+    }
+
+    async fn new_state(resolver: DnsResolver, score: u32) -> Result<State> {
         match resolver {
-            DnsResolver::Plain(r) => Self::new_plain_state(r).await,
-            DnsResolver::DNScrypt(r) => Self::new_dnscrypt_state(r).await,
-            DnsResolver::DoH(r) => Self::new_doh_state(r).await,
+            DnsResolver::Plain(r) => Self::new_plain_state(r, score).await,
+            DnsResolver::DNScrypt(r) => Self::new_dnscrypt_state(r, score).await,
+            DnsResolver::DoH(r) => Self::new_doh_state(r, score).await,
         }
     }
 
-    async fn new_dnscrypt_state(resolver: DNScryptResolver) -> Result<State> {
+    async fn new_dnscrypt_state(resolver: DNScryptResolver, score: u32) -> Result<State> {
         unimplemented!();
     }
 
-    async fn new_plain_state(resolver: PlainResolver) -> Result<State> {
+    async fn new_plain_state(resolver: PlainResolver, score: u32) -> Result<State> {
         debug!("Creating a state with PlainResolver config");
         let name_server = SocketAddr::new(resolver.addr().to_owned(), resolver.port());
 
         let provider = TokioRuntimeProvider::default();
         let stream = UdpClientStream::builder(name_server, provider).build();
-        Self::create_state(DnsResolver::Plain(resolver), stream).await
+        Self::create_state(DnsResolver::Plain(resolver), stream, score).await
     }
 
-    async fn new_doh_state(resolver: DoHResolver) -> Result<State> {
+    async fn new_doh_state(resolver: DoHResolver, score: u32) -> Result<State> {
         debug!("Creating a state with DoHResolver config");
         let host = match resolver.host() {
             Host::Ip(ip) => ip.to_string(),
@@ -382,10 +519,10 @@ impl Resolvers {
         );
 
         let stream = stream_builder.build(name_server, host, resolver.path().into());
-        Self::create_state(DnsResolver::DoH(resolver), stream).await
+        Self::create_state(DnsResolver::DoH(resolver), stream, score).await
     }
 
-    async fn create_state<F, S>(resolver: DnsResolver, stream: F) -> Result<State>
+    async fn create_state<F, S>(resolver: DnsResolver, stream: F, score: u32) -> Result<State>
     where
         S: DnsRequestSender,
         F: Future<Output = Result<S, ProtoError>> + 'static + Send + Unpin,
@@ -397,14 +534,26 @@ impl Resolvers {
             debug!("Client built with target: {:?}", resolver);
 
             let bg_handle = tokio::spawn(bg);
-            Ok(State { client: RugClient::SecClient(client), bg_handle, resolver, health: true })
+            Ok(State {
+                client: RugClient::SecClient(client),
+                bg_handle,
+                resolver,
+                health: true,
+                score,
+            })
         } else {
             // The resovler do not support DNSSEC
             let (client, bg) = Client::connect(stream).await?;
             debug!("Client built with target: {:?}", resolver);
 
             let bg_handle = tokio::spawn(bg);
-            Ok(State { client: RugClient::Client(client), bg_handle, resolver, health: true })
+            Ok(State {
+                client: RugClient::Client(client),
+                bg_handle,
+                resolver,
+                health: true,
+                score,
+            })
         }
     }
 }
