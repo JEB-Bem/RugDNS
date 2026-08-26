@@ -191,7 +191,7 @@ impl StampConvert for PlainResolver {
     }
 
     fn encode(&self) -> String {
-        let mut bytes = vec![ProtocolIdentifier::DNScrypt as u8];
+        let mut bytes = vec![ProtocolIdentifier::Plain as u8];
         // props
         bytes.extend_from_slice(&self.props.to_le_bytes());
         // LP(addr[:port])
@@ -724,6 +724,50 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_doh_stamp_ipv6_hostname() {
+        crate::init_tracing();
+        // Bracketed IPv6 in the hostname field.
+        let expect = DnsResolver::DoH(DoHResolver {
+            props: 0,
+            addr: None,
+            hashi: Vec::new(),
+            host: Host::Ip("fe80::6d6d:f72c:3ad:60b8".parse().unwrap()),
+            port: 443,
+            path: "/dns-query".into(),
+            bootstraps: Vec::new(),
+        });
+
+        assert_eq!(
+            parse_stamp(
+                "sdns://AgAAAAAAAAAAAAAeW2ZlODA6OjZkNmQ6ZjcyYzozYWQ6NjBiOF06NDQzCi9kbnMtcXVlcnk"
+            ),
+            Some(expect)
+        );
+    }
+
+    #[test]
+    fn test_parse_doh_stamp_ipv6_addr() {
+        crate::init_tracing();
+        // Bracketed IPv6 in the addr field (hostname stays a domain).
+        let expect = DnsResolver::DoH(DoHResolver {
+            props: 0,
+            addr: Some("fe80::6d6d:f72c:3ad:60b8".parse().unwrap()),
+            hashi: Vec::new(),
+            host: Host::Domain("dns.example.com".into()),
+            port: 443,
+            path: "/dns-query".into(),
+            bootstraps: Vec::new(),
+        });
+
+        assert_eq!(
+            parse_stamp(
+                "sdns://AgAAAAAAAAAAGltmZTgwOjo2ZDZkOmY3MmM6M2FkOjYwYjhdAA9kbnMuZXhhbXBsZS5jb20KL2Rucy1xdWVyeQ"
+            ),
+            Some(expect)
+        );
+    }
+
+    #[test]
     fn test_parse_dnscrypt_stamp_basic() {
         crate::init_tracing();
         let expect = DNScryptResolver::build(
@@ -805,6 +849,134 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_parse_dnscrypt_stamp_ipv6() {
+        crate::init_tracing();
+        // IPv6 addr is bracketed per the spec, e.g. [fe80::...]:443.
+        let expect = DNScryptResolver {
+            props: 0,
+            addr: "fe80::6d6d:f72c:3ad:60b8".parse().unwrap(),
+            port: 443,
+            pk: "daea841aedb59a3533482fcde8a63f4f22fdd80beaa981c5ee4478ff2527ed72".into(),
+            provider_name: "2.dnscrypt-cert.dnscry.pt".into(),
+        };
+
+        assert_eq!(
+            parse_stamp(
+                "sdns://AQAAAAAAAAAAHltmZTgwOjo2ZDZkOmY3MmM6M2FkOjYwYjhdOjQ0MyDa6oQa7bWaNTNIL83opj9PIv3YC-qpgcXuRHj_JSftchkyLmRuc2NyeXB0LWNlcnQuZG5zY3J5LnB0"
+            ),
+            Some(DnsResolver::DNScrypt(expect))
+        );
+    }
+
+    #[test]
+    fn test_parse_plain_stamp_basic() {
+        crate::init_tracing();
+        let expect = PlainResolver::build(
+            // props=
+            0,
+            // addr=
+            "223.5.5.5".parse().unwrap(),
+            // port=
+            53,
+        )
+        .unwrap();
+
+        assert_eq!(
+            parse_stamp("sdns://AAAAAAAAAAAADDIyMy41LjUuNTo1Mw"),
+            Some(DnsResolver::Plain(expect))
+        );
+    }
+
+    #[test]
+    fn test_parse_plain_stamp_props_little_endian() {
+        crate::init_tracing();
+        // props=1 (DNSSEC), encoded little-endian: 01 00 00 00 00 00 00 00
+        let expect = PlainResolver::build(
+            // props=
+            1,
+            // addr=
+            "223.5.5.5".parse().unwrap(),
+            // port=
+            53,
+        )
+        .unwrap();
+
+        assert_eq!(
+            parse_stamp("sdns://AAEAAAAAAAAADDIyMy41LjUuNTo1Mw"),
+            Some(DnsResolver::Plain(expect))
+        );
+    }
+
+    #[test]
+    fn test_parse_plain_stamp_port() {
+        crate::init_tracing();
+        let expect = PlainResolver::build(
+            // props=
+            0,
+            // addr=
+            "223.5.5.5".parse().unwrap(),
+            // port=
+            5353,
+        )
+        .unwrap();
+
+        assert_eq!(
+            parse_stamp("sdns://AAAAAAAAAAAADjIyMy41LjUuNTo1MzUz"),
+            Some(DnsResolver::Plain(expect))
+        );
+    }
+
+    #[test]
+    fn test_parse_plain_stamp_invalid() {
+        crate::init_tracing();
+        // An empty addr yields an empty LP string, which `parse_from_bytes`
+        // rejects by returning None.
+        assert_eq!(parse_stamp("sdns://AAAAAAAAAAAAAA"), None);
+    }
+
+    #[test]
+    fn test_parse_plain_stamp_default_port() {
+        crate::init_tracing();
+        // Per the DNS Stamps spec, DNSCrypt/DoH default to port 443, but a
+        // plain (0x00) stamp without a port uses the standard DNS port 53.
+        let expect = PlainResolver::build(0, "223.5.5.5".parse().unwrap(), 53).unwrap();
+
+        assert_eq!(
+            parse_stamp("sdns://AAAAAAAAAAAACTIyMy41LjUuNQ"),
+            Some(DnsResolver::Plain(expect))
+        );
+    }
+
+    #[test]
+    fn test_parse_plain_stamp_ipv6() {
+        crate::init_tracing();
+        // IPv6 addresses are bracketed per the spec, e.g. [fe80::...]:53.
+        let expect =
+            PlainResolver::build(0, "fe80::6d6d:f72c:3ad:60b8".parse().unwrap(), 53).unwrap();
+
+        assert_eq!(
+            parse_stamp("sdns://AAAAAAAAAAAAHVtmZTgwOjo2ZDZkOmY3MmM6M2FkOjYwYjhdOjUz"),
+            Some(DnsResolver::Plain(expect))
+        );
+    }
+
+    #[test]
+    fn test_parse_plain_stamp_invalid_props() {
+        crate::init_tracing();
+        // props=8 exceeds the valid range (0..=7); parse should return None
+        // rather than panicking on `build(...).unwrap()`.
+        assert_eq!(parse_stamp("sdns://AAgAAAAAAAAADDIyMy41LjUuNTo1Mw"), None);
+    }
+
+    #[test]
+    fn test_parse_plain_stamp_domain_addr() {
+        crate::init_tracing();
+        // A plain stamp must carry an IP address, not a domain; parse should
+        // return None rather than panicking.
+        assert_eq!(parse_stamp("sdns://AAAAAAAAAAAAC2V4YW1wbGUuY29t"), None);
+    }
+
     const DOH_STAMP_LIST: &[&str] = &[
         "sdns://AgAAAAAAAAAACTIyMy41LjUuNSCY49XlNq8pWM0vfxT3BO9KJ20l4zzWXy5l9eTycnwTMA0yMjMuNS41LjU6NDQzCi9kbnMtcXVlcnk",
         "sdns://AgAAAAAAAAAACTIyMy41LjUuNQANMjIzLjUuNS41OjQ0MwovZG5zLXF1ZXJ5",
@@ -833,6 +1005,21 @@ mod tests {
     fn test_encode_dnscrypt_stamp() {
         crate::init_tracing();
         for stamp in DNSCRYPT_STAMP_LIST {
+            debug!("Test stamp: {stamp}");
+            assert_eq!(&parse_stamp(stamp).unwrap().encode(), stamp);
+        }
+    }
+
+    const PLAIN_STAMP_LIST: &[&str] = &[
+        "sdns://AAAAAAAAAAAADDIyMy41LjUuNTo1Mw",
+        "sdns://AAAAAAAAAAAADjIyMy41LjUuNTo1MzUz",
+        "sdns://AAEAAAAAAAAADDIyMy41LjUuNTo1Mw",
+    ];
+
+    #[test]
+    fn test_encode_plain_stamp() {
+        crate::init_tracing();
+        for stamp in PLAIN_STAMP_LIST {
             debug!("Test stamp: {stamp}");
             assert_eq!(&parse_stamp(stamp).unwrap().encode(), stamp);
         }
