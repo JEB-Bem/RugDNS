@@ -61,6 +61,8 @@ impl RequestHandler for RugDnsHandler {
             Ok(mut resp) => {
                 // Set response `id` with the request `id`.
                 resp.set_id(request.id());
+                // Set RA flag to 1
+                resp.set_recursion_available(true);
 
                 // Split resp.name_servers into SOA and non-SOA entries.
                 let name_servers = resp
@@ -84,6 +86,7 @@ impl RequestHandler for RugDnsHandler {
                 response_handle.send_response(response).await.unwrap()
             }
             Err(err) => {
+                // TODO: Set request id and RA flag
                 let response = builder.error_msg(request.header(), ResponseCode::ServFail);
                 warn!("resolver lookup error: {err}");
                 debug!("Send response with RCODE: ServFail.");
