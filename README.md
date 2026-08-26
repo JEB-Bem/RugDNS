@@ -92,7 +92,7 @@
 
 - [x] (Resolver) Re-establish HTTP2 connection.
     - [ ] Add test.
-- [] (Handler/Resolver) Timeout machanism.
+- [ ] (Handler/Resolver) Timeout machanism.
     - [x] Simple machanism.
     - [ ] Narrow the timeout scope to the network connection function.
     - [x] Add test.
