@@ -14,3 +14,4 @@
 4. **端到端超时传播。** `src/rug_dns_resolver.rs:179-193` 与 `src/rug_dns_handler.rs:52-63` 都在 `timeout` 后 `expect`，目前会 panic 而非返回 DNS 错误。需用延迟响应的本地 DoH fixture + UDP client 验证客户端能获得定义的失败响应且服务继续存活。
 5. **缓存读写与离线回退。** `src/config.rs:71-128` 同时涉及 Tokio 文件系统、并发下载和环境确定的缓存路径。使用独立临时目录及本地 fixture server 验证“下载成功写缓存 → 网络不可用 → 验签后从缓存加载”、缺失/损坏签名、权限错误与并发更新。此为文件系统组件集成测试，不应访问公网或 `/tmp/rugdns`。
 6. **配置发现与二进制启动。** `src/config.rs:131-170`、`src/main.rs:22-41` 依赖 CWD、环境和真实启动过程。应以隔离的子进程、CWD、HOME/XDG 与临时配置文件验证优先级、无配置/无效 TOML 的退出行为和监听配置。特别应覆盖 `"~/.config/..."` 不会由 Rust 自动展开的实际缺陷。
+7. 使用 dnssec-failed.org 和 isc.org 分别测试 dnssec 功能。
