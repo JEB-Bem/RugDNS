@@ -8,7 +8,10 @@ use std::{
 };
 
 use anyhow::{Result, bail};
-use futures::future::join_all;
+use futures::{
+    future::join_all,
+    stream::{FuturesUnordered, StreamExt},
+};
 use futures_util::stream::Stream;
 use hickory_client::client::{Client, DnssecClient};
 use hickory_proto::{
@@ -185,8 +188,10 @@ impl Resolvers {
         );
 
         if let Ok(res) = sec_res {
+            debug!("Use DNSSEC Result: {res:?}");
             Ok(res)
         } else if let Ok(res) = res {
+            debug!("Use NON-DNSSEC Result: {res:?}");
             // TODO: need more argument to handle the DNSSEC options.
             Ok(res)
         } else {
@@ -208,17 +213,18 @@ impl Resolvers {
             bail!("No resolver in the Resolvers");
         }
         let availables = Arc::new(RwLock::new(Self::get_available(clients, para_num).await));
-        let results = join_all((0..para_num).map(|task_id| {
+        let mut tasks = FuturesUnordered::new();
+        for task_id in 0..para_num {
             let availables = availables.clone();
             let query = query.clone();
-            async move {
+            tasks.push(async move {
                 debug!("#{task_id} task begin");
                 let ind = if let Some(ind) = self.take_healthy_available(availables).await {
                     ind
                 } else {
                     bail!("no available resolver");
                 };
-                let state = self.states[ind].write().await;
+                let state = self.states[ind].read().await;
                 let dnssec_tag =
                     if state.resolver.props() & 0x01 == 0x01 { "DNSSEC" } else { "NON-DNSSEC" };
 
@@ -226,7 +232,7 @@ impl Resolvers {
                 match if timeout.is_zero() {
                     // No limit.
                     let resp = state.lookup(query.clone()).await;
-                    drop(state); // release the write lock.
+                    drop(state); // release the read lock.
                     resp
                 } else {
                     let resp = if let Ok(value) =
@@ -241,7 +247,7 @@ impl Resolvers {
                         );
                         bail!("resolver lookup timed out.");
                     };
-                    drop(state); // release the write lock.
+                    drop(state); // release the read lock.
                     resp
                 } {
                     Ok(resp) => {
@@ -260,15 +266,24 @@ impl Resolvers {
                         }
                     }
                 }
-            }
-        }))
-        .await;
+            });
+        }
 
-        for res in results {
-            if let Ok(resp) = res {
-                debug!("One group got result: {resp:?}");
-                return Ok(resp);
+        let mut res = None;
+        while let Some(result) = tasks.next().await {
+            match result {
+                Ok(resp) => match &resp {
+                    Ok(_) => {
+                        debug!("One group will return result: {resp:?}");
+                        return Ok(resp);
+                    }
+                    Err(_) => res = Some(resp),
+                },
+                Err(err) => error!("Group got a task error: {err}"),
             }
+        }
+        if let Some(resp) = res {
+            return Ok(resp);
         }
 
         bail!("all lookuping tasks are failed or skipped");
@@ -414,10 +429,17 @@ impl Resolvers {
     }
 
     async fn reconn(&self, ind: usize, timeout: Duration) {
-        let state = &self.states[ind];
+        let mut state = self.states[ind].write().await;
         // Prevent other tasks from blocking?
+        let mut clients_rank = match state.client {
+            RugClient::Client(_) => self.rank.clients.write().await,
+            RugClient::SecClient(_) => self.rank.dnseclients.write().await,
+        };
+
+        // This section is atomic with respect to async task scheduling because it
+        // contains no `.await`. So the `score` is identical in rank and state
+        // ================ ATOMIC BEGIN ================
         let (resolver, score, new_score) = {
-            let mut state = state.write().await;
             state.health = false;
             let score = state.score;
             let new_score = if score < 100 { 0 } else { score - 100 };
@@ -426,19 +448,14 @@ impl Resolvers {
         };
         let resolver_debug = format!("{:?}", resolver);
         debug!("Reconnect with {resolver_debug}");
-
-        let mut clients_rank = match state.read().await.client {
-            RugClient::Client(_) => self.rank.clients.write().await,
-            RugClient::SecClient(_) => self.rank.dnseclients.write().await,
-        };
         clients_rank.remove(&Item { score, ind });
         clients_rank.insert(Item { score: new_score, ind });
+        // ================= ATOMIC END =================
 
         match time::timeout(timeout, Self::new_state(resolver, score)).await {
             Ok(v) => match v {
                 Ok(v) => {
                     let State { client, bg_handle, .. } = v;
-                    let mut state = state.write().await;
                     state.client = client;
                     state.bg_handle = bg_handle;
                     state.health = true;
@@ -453,34 +470,34 @@ impl Resolvers {
 
     // Note: The score is also updated in `reconn`.
     async fn update_score(&self, ind: usize, success: bool) {
-        let state = &self.states[ind];
+        debug!("Acquiring write lock of states[{ind}]");
+        let mut state = self.states[ind].write().await;
+        debug!("Acquiring read lock of clients_rank");
+        let mut clients_rank = match state.client {
+            RugClient::Client(_) => self.rank.clients.write().await,
+            RugClient::SecClient(_) => self.rank.dnseclients.write().await,
+        };
+        // This section is atomic with respect to async task scheduling because it
+        // contains no `.await`. So the `score` is identical in rank and state
+        // ================ ATOMIC BEGIN ================
         let (score, new_score) = if success {
             debug!("Success! Updating score...");
-            debug!("Acquiring write lock of states[{ind}]");
-            let mut state = state.write().await;
             let score = state.score;
             let new_score = if score < 1000 { 1000 } else { score + 100 };
             state.score = new_score;
             (score, new_score)
         } else {
             debug!("Failed. Updating score...");
-            debug!("Acquiring write lock of states[{ind}]");
-            let mut state = state.write().await;
             let score = state.score;
             let new_score = if score < 100 { 0 } else { score - 100 };
             state.score = new_score;
             (score, new_score)
         };
 
-        // Acquire locks in the same order as in `add_state_with_resolver()`.
-        debug!("Acquiring read lock of clients_rank({score}, {ind})");
-        let mut clients_rank = match state.read().await.client {
-            RugClient::Client(_) => self.rank.clients.write().await,
-            RugClient::SecClient(_) => self.rank.dnseclients.write().await,
-        };
         clients_rank.remove(&Item { score, ind });
         clients_rank.insert(Item { score: new_score, ind });
         debug!("Updated score.");
+        // ================= ATOMIC END =================
     }
 
     async fn new_state(resolver: DnsResolver, score: u32) -> Result<State> {
