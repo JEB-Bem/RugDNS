@@ -1,4 +1,7 @@
-# RugDNS
+<h1 align="center">
+<img width="300px" src="assets/logo_white_dark.png" />
+
+</h1>
 
 ## 大致设计
 
@@ -10,7 +13,7 @@
 
 或许可以再多一层，提前用一个已经解析出来 IP 的 DoH 去获取 DoH 的域名，但是 DNS Stamp 里面好像都有吧？
 
-![20260810-7d0867378bff5858.png](./images/20260810-7d0867378bff5858.png)
+![20260810-7d0867378bff5858.png](./assets/graph.png)
 
 - 我在想那个 DNSSEC 如果 verify 不通过的话，能不能映射到我们自己的 ip 上，然后这个是一个本地 Web 服务，只有用户允许，才会返回真正的 DNS
 
