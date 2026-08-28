@@ -63,7 +63,7 @@ async fn create_tunnel(
          Host: {server_addr}\r\n\
          \r\n"
     );
-    debug!("Write content: {content}");
+    debug!("Write content: {content:?}");
     stream.write_all(content.as_bytes()).await?;
 
     let mut buf = [0u8; 256];

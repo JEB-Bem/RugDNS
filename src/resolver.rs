@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeSet, HashMap},
-    io::ErrorKind::AddrNotAvailable,
     net::SocketAddr,
     ops::Deref,
     pin::Pin,
@@ -18,7 +17,7 @@ use hickory_proto::{
     ProtoError, ProtoErrorKind,
     h2::HttpsClientStreamBuilder,
     op::Query,
-    runtime::TokioRuntimeProvider,
+    runtime::{RuntimeProvider, TokioRuntimeProvider},
     rustls as hickory_rustls,
     udp::UdpClientStream,
     xfer::{DnsHandle, DnsRequest, DnsRequestOptions, DnsRequestSender, DnsResponse, FirstAnswer},
@@ -34,6 +33,7 @@ use tracing::{debug, error, info, warn};
 use crate::{
     config::Config,
     dnstamp::{self, DNScryptResolver, DnsResolver, DoHResolver, Host, PlainResolver},
+    runtime::HttpProxyRuntimeProvider,
 };
 
 #[derive(Clone)]
@@ -69,6 +69,7 @@ struct Rank {
 struct Resolvers {
     rank:    Rank,
     states:  Vec<RwLock<State>>,
+    proxy:   Option<SocketAddr>,
     is_dhcp: bool,
 }
 
@@ -130,6 +131,7 @@ impl Resolvers {
         server_names: &Vec<String>,
         servers: &Option<HashMap<String, Vec<String>>>,
         mut timeout: Duration,
+        proxy: Option<SocketAddr>,
     ) -> Self {
         // - A item in `server_names` can be either an IP such us '223.5.5.5' or a server name
         //   defined in the server souces list, such as 'google'.
@@ -157,7 +159,14 @@ impl Resolvers {
         join_all(server_names.into_iter().map(|name| {
             time::timeout(
                 timeout,
-                Self::add_server_states(name, servers, states.clone(), rank.clone(), timeout),
+                Self::add_server_states(
+                    name,
+                    servers,
+                    states.clone(),
+                    rank.clone(),
+                    timeout,
+                    proxy,
+                ),
             )
         }))
         .await;
@@ -167,7 +176,7 @@ impl Resolvers {
         let states = rwlock.into_inner();
         let rank = Arc::into_inner(rank).unwrap();
 
-        Self { states, rank, is_dhcp: false }
+        Self { states, rank, proxy, is_dhcp: false }
     }
 
     pub async fn dhcp_init() -> Self {
@@ -331,6 +340,7 @@ impl Resolvers {
         states: Arc<RwLock<Vec<RwLock<State>>>>,
         rank: Arc<Rank>,
         timeout: Duration,
+        proxy: Option<SocketAddr>,
     ) {
         // If `name` is a simple ip such as `223.5.5.5`.
         if let Some((host, port)) = dnstamp::split_hostname(name) {
@@ -341,9 +351,10 @@ impl Resolvers {
                 }
                 Host::Ip(ip) => {
                     let resolver = DnsResolver::Plain(PlainResolver::build(0, ip, port).unwrap());
-                    Self::add_state_with_resolver(resolver, states, rank).await;
+                    Self::add_state_with_resolver(resolver, states, rank, proxy).await;
                 }
             }
+            info!("Initialized {name}");
             return;
         } // Or a DNS Stamp.
 
@@ -351,6 +362,7 @@ impl Resolvers {
 
         // Concurrently initialize server names on a single thread.
         let stamps = servers.as_ref().unwrap().get(name).expect("server {name} not found");
+        let len = stamps.len();
         join_all(stamps.into_iter().map(|stamp| {
             debug!("Parsing {stamp}");
             let states = states.clone();
@@ -359,22 +371,24 @@ impl Resolvers {
                 let resolver = if let Some(v) = dnstamp::parse_stamp(stamp) {
                     v
                 } else {
-                    warn!("Dnstamp: '{stamp}' is invalid");
+                    warn!("Dnstamp: '{stamp}' is invalid.");
                     return;
                 };
-                Self::add_state_with_resolver(resolver, states, rank).await
+                Self::add_state_with_resolver(resolver, states, rank, proxy).await
             })
         }))
         .await;
+        info!("Initialized {name}: expect {len} servers in total.");
     }
 
     async fn add_state_with_resolver(
         resolver: DnsResolver,
         states: Arc<RwLock<Vec<RwLock<State>>>>,
         rank: Arc<Rank>,
+        proxy: Option<SocketAddr>,
     ) {
         let score = 1000;
-        let state = match Self::new_state(resolver, score).await {
+        let state = match Self::new_state(resolver, score, proxy).await {
             Ok(v) => v,
             Err(err) => {
                 warn!("Create a resolver: {err}");
@@ -451,7 +465,7 @@ impl Resolvers {
         clients_rank.insert(Item { score: new_score, ind });
         // ================= ATOMIC END =================
 
-        match time::timeout(timeout, Self::new_state(resolver, score)).await {
+        match time::timeout(timeout, Self::new_state(resolver, score, self.proxy)).await {
             Ok(v) => match v {
                 Ok(v) => {
                     let State { client, bg_handle, .. } = v;
@@ -499,11 +513,15 @@ impl Resolvers {
         // ================= ATOMIC END =================
     }
 
-    async fn new_state(resolver: DnsResolver, score: u32) -> Result<State> {
+    async fn new_state(
+        resolver: DnsResolver,
+        score: u32,
+        proxy: Option<SocketAddr>,
+    ) -> Result<State> {
         match resolver {
             DnsResolver::Plain(r) => Self::new_plain_state(r, score).await,
             DnsResolver::DNScrypt(r) => Self::new_dnscrypt_state(r, score).await,
-            DnsResolver::DoH(r) => Self::new_doh_state(r, score).await,
+            DnsResolver::DoH(r) => Self::new_doh_state(r, score, proxy).await,
         }
     }
 
@@ -520,7 +538,11 @@ impl Resolvers {
         Self::create_state(DnsResolver::Plain(resolver), stream, score).await
     }
 
-    async fn new_doh_state(resolver: DoHResolver, score: u32) -> Result<State> {
+    async fn new_doh_state(
+        resolver: DoHResolver,
+        score: u32,
+        proxy: Option<SocketAddr>,
+    ) -> Result<State> {
         debug!("Creating a state with DoHResolver config");
         let host = match resolver.host() {
             Host::Ip(ip) => ip.to_string(),
@@ -528,13 +550,23 @@ impl Resolvers {
         };
         let name_server = SocketAddr::new(resolver.addr().expect("unimplemented"), resolver.port());
 
-        let provider = TokioRuntimeProvider::default();
-        let stream_builder = HttpsClientStreamBuilder::with_client_config(
-            Arc::new(hickory_rustls::client_config()),
-            provider,
-        );
+        let stream = match proxy {
+            Some(proxy) => {
+                let builder = HttpsClientStreamBuilder::with_client_config(
+                    Arc::new(hickory_rustls::client_config()),
+                    HttpProxyRuntimeProvider::new(proxy),
+                );
+                builder.build(name_server, host, resolver.path().into())
+            }
+            None => {
+                let builder = HttpsClientStreamBuilder::with_client_config(
+                    Arc::new(hickory_rustls::client_config()),
+                    TokioRuntimeProvider::default(),
+                );
+                builder.build(name_server, host, resolver.path().into())
+            }
+        };
 
-        let stream = stream_builder.build(name_server, host, resolver.path().into());
         Self::create_state(DnsResolver::DoH(resolver), stream, score).await
     }
 
@@ -578,20 +610,25 @@ impl RugDnsResolver {
     /// Constructs a new DNS Resolver
     pub async fn init(config: &Config) -> Self {
         debug!("Intializing RugDnsResolver");
-        debug!("Intializing Proxy Resolvers");
         let timeout = Duration::from_secs(config.timeout_s as u64);
+
+        debug!("Intializing Proxy Resolvers");
         let proxy_resolvers =
-            Resolvers::init(&config.proxy_servers, &config.sources.servers, timeout).await;
+            Resolvers::init(&config.proxy_servers, &config.sources.servers, timeout, config.proxy)
+                .await;
+
         debug!("Intializing Direct Resolvers");
         let direct_resolvers =
-            Resolvers::init(&config.direct_servers, &config.sources.servers, timeout).await;
+            Resolvers::init(&config.direct_servers, &config.sources.servers, timeout, None).await;
+
         debug!("Intializing Default Resolvers");
         let default_resolvers =
-            Resolvers::init(&config.default_servers, &config.sources.servers, timeout).await;
+            Resolvers::init(&config.default_servers, &config.sources.servers, timeout, None).await;
+
         // FIXME: Temporary implementation.
         debug!("Intializing DHCP Resolvers");
         let dhcp_resolvers =
-            Resolvers::init(&config.direct_servers, &config.sources.servers, timeout).await;
+            Resolvers::init(&config.direct_servers, &config.sources.servers, timeout, None).await;
         if (proxy_resolvers.states.len()
             + direct_resolvers.states.len()
             + default_resolvers.states.len()

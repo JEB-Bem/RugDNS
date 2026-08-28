@@ -1,10 +1,17 @@
-use std::{collections::HashMap, ffi::OsString, net::IpAddr, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    env,
+    ffi::OsString,
+    net::{IpAddr, SocketAddr},
+    path::PathBuf,
+};
 
 use anyhow::Result;
 use minisign_verify::{PublicKey, Signature};
 use serde::{Deserialize, Serialize};
-use tokio::{fs, sync::RwLock, task::JoinSet};
+use tokio::{fs, task::JoinSet};
 use tracing::{debug, error, info, warn};
+use url::Url;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
@@ -12,6 +19,7 @@ pub struct Config {
     pub port:            u16,
     pub timeout_s:       u8,
     pub para_num:        u8,
+    pub proxy:           Option<SocketAddr>,
     pub proxy_servers:   Vec<String>,
     pub direct_servers:  Vec<String>,
     pub default_servers: Vec<String>,
@@ -32,6 +40,7 @@ impl Default for Config {
             port:            8553,
             timeout_s:       5,
             para_num:        3,
+            proxy:           None,
             proxy_servers:   Vec::default(),
             direct_servers:  Vec::default(),
             default_servers: Vec::default(),
@@ -148,6 +157,41 @@ fn find_config() -> Option<&'static str> {
     None
 }
 
+fn update_proxy(config: &mut Config) {
+    let mut s = String::default();
+    if let Ok(v) = env::var("HTTP_PROXY") {
+        debug!("HTTP_PROXY={v}");
+        s = v.parse().unwrap();
+    }
+    if let Ok(v) = env::var("http_proxy") {
+        debug!("http_proxy={v}");
+        s = v.parse().unwrap();
+    }
+    if let Ok(v) = env::var("HTTPS_PROXY") {
+        debug!("HTTPS_PROXY={v}");
+        s = v.parse().unwrap();
+    }
+    if let Ok(v) = env::var("https_proxy") {
+        debug!("https_proxy={v}");
+        s = v.parse().unwrap();
+    }
+
+    let url = Url::parse(&s).unwrap();
+    if url.scheme() != "http" {
+        panic!("unsupported proxy scheme: {}", url.scheme());
+    }
+    // TODO: use a default dns server to parse proxy with a domain format
+    config.proxy = Some(
+        format!(
+            "{}:{}",
+            url.host_str().expect("proxy config expect a host"),
+            url.port().expect("proxy config expect a port")
+        )
+        .parse()
+        .expect("proxy config parsing failed"),
+    );
+}
+
 /// Read Configuration File, then initialize the public resolvers configurations
 pub async fn init_config(path: Option<&str>) -> Config {
     // Read Configuration
@@ -184,6 +228,9 @@ pub async fn init_config(path: Option<&str>) -> Config {
     {
         panic!("each server list should have at least one server.");
     }
+
+    // Update the proxy option
+    update_proxy(&mut config);
 
     config
 }
@@ -246,5 +293,8 @@ mod tests {
 
     // Smoke test
     #[tokio::test]
-    async fn test_init_config() { init_config(None).await; }
+    async fn test_init_config() {
+        crate::init_tracing();
+        init_config(None).await;
+    }
 }

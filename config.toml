@@ -11,6 +11,8 @@
 ###############################################################################
 bind = "127.0.0.1"
 port = 8553
+# Currently use HTTP CONNECT to establish a tunnel with proxy
+proxy = "127.0.0.1:10808"
 # [0, 256) seconds, 0 means no limit(some task actually will be set to 60s).
 timeout_s = 5         
 # Number of parallel resolutions per stage, applied separately to non-DNSSEC
