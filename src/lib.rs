@@ -2,6 +2,7 @@ pub mod config;
 pub mod dnstamp;
 pub mod handler;
 pub mod resolver;
+pub mod runtime;
 
 use tracing_subscriber::EnvFilter;
 
