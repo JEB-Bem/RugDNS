@@ -628,7 +628,7 @@ impl RugDnsResolver {
         // FIXME: Temporary implementation.
         debug!("Intializing DHCP Resolvers");
         let dhcp_resolvers =
-            Resolvers::init(&config.direct_servers, &config.sources.servers, timeout, None).await;
+            Resolvers::init(&config.dhcp_servers, &config.sources.servers, timeout, None).await;
         if (proxy_resolvers.states.len()
             + direct_resolvers.states.len()
             + default_resolvers.states.len()

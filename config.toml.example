@@ -48,6 +48,14 @@ direct_servers = [
 # Only `default_servers` accepts plain IP addresses such as '8.8.8.8'.
 default_servers = ['223.5.5.5', '8.8.8.8', 'google-plain']
 
+# `dhcp_servers` refer to the DNS servers assigned by the current network.
+# They are especially useful in captive portal scenarios, where resolving the
+# portal domain may be required. `default_servers` may fail in such cases for
+# various reasons; for example, some networks only allow DNS traffic on port 53
+# to whitelisted servers.
+
+dhcp_servers = []
+
 # Acquire dnscript public resolver list from network.
 # If all URLs are unreachable, use the offline `resolvers.md` file
 [sources]

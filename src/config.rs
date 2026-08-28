@@ -23,6 +23,7 @@ pub struct Config {
     pub proxy_servers:   Vec<String>,
     pub direct_servers:  Vec<String>,
     pub default_servers: Vec<String>,
+    pub dhcp_servers: Vec<String>,
     pub sources:         Sources,
 }
 
@@ -44,6 +45,7 @@ impl Default for Config {
             proxy_servers:   Vec::default(),
             direct_servers:  Vec::default(),
             default_servers: Vec::default(),
+            dhcp_servers: Vec::default(),
             sources:         Sources::default(),
         }
     }
