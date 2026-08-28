@@ -490,7 +490,7 @@ impl DnsResolver {
 }
 
 pub fn parse_stamp(mut b64_str: &str) -> Option<DnsResolver> {
-    b64_str = b64_str.get((b64_str.trim_matches('=').find("sdns://")? + 7)..)?;
+    b64_str = b64_str.trim_matches('=').split_once("sdns://")?.1;
     let bytes = URL_SAFE_NO_PAD.decode(b64_str).expect("parse dns stamp");
     match bytes[0] {
         v if v == ProtocolIdentifier::Plain as u8 => PlainResolver::parse_from_bytes(&bytes[1..]),
